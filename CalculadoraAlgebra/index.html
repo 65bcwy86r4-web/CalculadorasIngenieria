@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Álgebra Lineal — Calculadora</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body data-theme="dark">
+
+  <!-- ============================ BARRA SUPERIOR ============================ -->
+  <header class="topbar">
+    <button class="icon-btn" id="btnToggleSidebar" aria-label="Mostrar/ocultar menú" title="Menú (Ctrl+B)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <div class="brand">
+      <span class="brand-mark">Σ</span>
+      <div class="brand-text">
+        <span class="brand-name">Álgebra<b>Lineal</b></span>
+        <span class="brand-sub">calculadora matricial para ingeniería</span>
+      </div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="matrix-size-control">
+      <label for="matSize">Dimensión</label>
+      <select id="matSize"></select>
+      <button class="btn btn-accent" id="btnGenerate">Generar matriz</button>
+    </div>
+    <button class="icon-btn" id="btnHistory" title="Historial (Ctrl+H)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <button class="icon-btn" id="btnTheme" title="Cambiar tema">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" id="themeIcon"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </header>
+
+  <div class="app-body">
+
+    <!-- ============================ BARRA LATERAL ============================ -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+
+        <div class="op-group">
+          <h3>Propiedades básicas</h3>
+          <button class="op-btn" data-op="transpose">Transpuesta (Aᵀ)</button>
+          <button class="op-btn" data-op="trace">Traza</button>
+          <button class="op-btn" data-op="rank">Rango</button>
+          <button class="op-btn" data-op="norm">Norma de Frobenius</button>
+          <button class="op-btn" data-op="classify">Clasificar matriz</button>
+        </div>
+
+        <div class="op-group">
+          <h3>Determinante e inversa</h3>
+          <button class="op-btn" data-op="det-gauss">Determinante (Gauss)</button>
+          <button class="op-btn" data-op="det-cofactor">Determinante (cofactores, teoría)</button>
+          <button class="op-btn" data-op="inverse">Matriz inversa (Gauss-Jordan)</button>
+          <button class="op-btn" data-op="adjugate">Matriz adjunta</button>
+          <button class="op-btn" data-op="cofactors">Matriz de cofactores</button>
+          <button class="op-btn" data-op="condition">Número de condición</button>
+        </div>
+
+        <div class="op-group">
+          <h3>Sistemas y eliminación</h3>
+          <button class="op-btn" data-op="gauss">Escalonar (Gauss)</button>
+          <button class="op-btn" data-op="gaussjordan">Escalonar reducida (Gauss-Jordan)</button>
+          <button class="op-btn" data-op="solve">Resolver Ax = b</button>
+        </div>
+
+        <div class="op-group">
+          <h3>Operaciones entre matrices</h3>
+          <button class="op-btn" data-op="add">Suma (A + B)</button>
+          <button class="op-btn" data-op="subtract">Resta (A − B)</button>
+          <button class="op-btn" data-op="multiply">Producto (A · B)</button>
+          <button class="op-btn" data-op="scalar">Multiplicación por escalar</button>
+          <button class="op-btn" data-op="power">Potencia (Aⁿ)</button>
+        </div>
+
+        <div class="op-group">
+          <h3>Matrices especiales</h3>
+          <button class="op-btn" data-op="identity">Matriz identidad</button>
+          <button class="op-btn" data-op="diagonal">Construir diagonal</button>
+        </div>
+
+        <div class="op-group">
+          <h3>Autovalores y descomposiciones</h3>
+          <button class="op-btn" data-op="eigenvalues">Autovalores (QR iterativo)</button>
+          <button class="op-btn" data-op="eigenvectors">Autovectores</button>
+          <button class="op-btn" data-op="diagonalization">Diagonalización (A=PDP⁻¹)</button>
+          <button class="op-btn" data-op="lu">Descomposición LU</button>
+          <button class="op-btn" data-op="qr">Factorización QR</button>
+          <button class="op-btn" data-op="cholesky">Descomposición de Cholesky</button>
+        </div>
+
+      </div>
+    </nav>
+
+    <!-- ============================ ÁREA PRINCIPAL ============================ -->
+    <main class="main-area">
+
+      <section class="matrices-zone" id="matricesZone">
+        <div class="matrix-card" id="cardA">
+          <div class="matrix-card-head">
+            <span>Matriz A <span class="dim-badge" id="dimBadgeA"></span></span>
+            <button class="link-btn" data-paste-target="A" title="Pegar desde Excel / Sheets / MATLAB">Pegar</button>
+          </div>
+          <div class="matrix-grid" id="gridA"></div>
+        </div>
+
+        <div class="matrix-card hidden" id="cardB">
+          <div class="matrix-card-head">
+            <span>Matriz B <span class="dim-badge" id="dimBadgeB"></span></span>
+            <button class="link-btn" data-paste-target="B" title="Pegar desde Excel / Sheets / MATLAB">Pegar</button>
+          </div>
+          <div class="matrix-grid" id="gridB"></div>
+        </div>
+
+        <div class="matrix-card hidden" id="cardVectorB">
+          <div class="matrix-card-head"><span>Vector b</span></div>
+          <div class="matrix-grid" id="gridVectorB"></div>
+        </div>
+
+        <div class="extra-controls hidden" id="scalarControl">
+          <label for="scalarInput">Escalar k</label>
+          <input type="number" id="scalarInput" value="2" step="any" />
+        </div>
+
+        <div class="extra-controls hidden" id="powerControl">
+          <label for="powerInput">Exponente n</label>
+          <input type="number" id="powerInput" value="2" min="0" step="1" />
+        </div>
+      </section>
+
+      <div class="run-bar">
+        <span class="run-bar-label" id="currentOpLabel">Elegí una operación del menú lateral</span>
+        <button class="btn btn-accent btn-run" id="btnRun" disabled>Calcular</button>
+      </div>
+
+      <section class="results-zone">
+        <div class="panel" id="resultPanel">
+          <div class="panel-head"><h3>Resultado</h3>
+            <div class="export-buttons">
+              <button class="chip-btn" id="btnExportTxt">TXT</button>
+              <button class="chip-btn" id="btnExportCsv">CSV</button>
+              <button class="chip-btn" id="btnExportPdf">PDF</button>
+            </div>
+          </div>
+          <div class="panel-body" id="resultBody">
+            <p class="placeholder">Acá va a aparecer el resultado de la operación.</p>
+          </div>
+        </div>
+
+        <div class="panel" id="stepsPanel">
+          <div class="panel-head"><h3>Procedimiento paso a paso</h3></div>
+          <div class="panel-body steps-body" id="stepsBody">
+            <p class="placeholder">El desarrollo completo del cálculo se muestra acá, como en una libreta de cátedra.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ============================ PANEL DE HISTORIAL ============================ -->
+  <aside class="history-drawer" id="historyDrawer">
+    <div class="panel-head">
+      <h3>Historial de cálculos</h3>
+      <button class="icon-btn" id="btnCloseHistory">✕</button>
+    </div>
+    <div class="history-list" id="historyList"></div>
+  </aside>
+  <div class="overlay" id="overlay"></div>
+
+  <!-- ============================ VISTA DE IMPRESIÓN (EXPORT PDF) ============================ -->
+  <div id="printArea" class="print-only"></div>
+
+  <!-- Toast de notificaciones -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Los módulos se cargan como <script> clásicos (no type="module") para que
+       la aplicación funcione abriendo index.html directamente vía file://,
+       sin bloqueos de CORS que sí ocurren con ES modules en ese protocolo. -->
+  <script src="js/matrix.js"></script>
+  <script src="js/vectors.js"></script>
+  <script src="js/gauss.js"></script>
+  <script src="js/determinant.js"></script>
+  <script src="js/inverse.js"></script>
+  <script src="js/eigen.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
