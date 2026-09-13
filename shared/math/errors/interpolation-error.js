@@ -1,5 +1,5 @@
 /**
- * InterpolationError.js
+ * interpolation-error.js
  * ---------------------------------------------------------------------------
  * Error específico del módulo de interpolación: puntos duplicados en x,
  * cantidad insuficiente de puntos para el método elegido, arreglos x/y de
@@ -8,7 +8,7 @@
  * ---------------------------------------------------------------------------
  */
 
-import { MathError } from './MathError.js';
+import { MathError } from './math-error.js';
 
 export class InterpolationError extends MathError {
   /**
@@ -16,7 +16,7 @@ export class InterpolationError extends MathError {
    * @param {Object} [context={}] - Ej: { x: 12, domain: [0, 10] }.
    *
    * @example
-   * import { InterpolationError } from '../errors/InterpolationError.js';
+   * import { InterpolationError } from '../errors/interpolation-error.js';
    * throw new InterpolationError(
    *   'Hay valores de x duplicados; Lagrange no está definido en ese caso.',
    *   { duplicated: 2.5 }

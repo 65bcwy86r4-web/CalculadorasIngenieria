@@ -9,11 +9,16 @@
  * mañana alguien los aplanara "para simplificar", chocarían nombres como
  * `add` o `sum` con el resto del motor y esta prueba lo mostraría.
  *
- * tensors reutiliza eigenvaluesQR para los valores principales, así que sus
- * tolerancias son las del algoritmo iterativo, no las del resto de la suite.
+ * tensors reutiliza `eigenvalues` para los valores principales, así que sus
+ * tolerancias son las del método que ese despacho elija —Jacobi para los
+ * tensores simétricos, que son todos los físicos— y no las del resto de la
+ * suite.
  *
  * Autor: Chat 5 — QA y Verificación
  * Fecha de creación: 2026-09-13
+ * Modificado: 2026-09-13 — Chat 2. ADR-005: principalValues pasó de
+ *   eigenvaluesQR a eigenvalues. Las expectativas no cambian; sí la razón por
+ *   la que el corte puro da el valor correcto.
  * Dependencias: shared/math/index.js, tests/assert.js
  * ---------------------------------------------------------------------------
  */
@@ -302,9 +307,12 @@ export const tests = [
       );
       // Corte puro: σ_vm = √3·τ. Era el hallazgo H-04 —devolvía 0, es decir
       // "material sin solicitación"— y se cerró al corregir el cálculo de
-      // autovalores en algebra/eigen.js (ADR-004). Es el caso de un eje a
-      // torsión o un bulón trabajando al corte, así que se prueba con la
-      // fórmula de libro y no con un número copiado de la salida.
+      // autovalores en algebra/eigen.js (ADR-004). Sigue cerrado con ADR-005
+      // porque principalValues pasó a llamar a `eigenvalues`, la entrada que
+      // despacha, y no a un algoritmo en particular: este tensor es simétrico
+      // y va por Jacobi. Es el caso de un eje a torsión o un bulón trabajando
+      // al corte, así que se prueba con la fórmula de libro y no con un
+      // número copiado de la salida.
       assertClose(
         tensors.vonMisesStress(new Matrix([[0, 50], [50, 0]])),
         Math.sqrt(3) * 50,
@@ -321,7 +329,9 @@ export const tests = [
     name: 'principalValues del tensor de corte puro son +τ, 0 y −τ',
     fn: () => {
       // La causa de H-04, verificada directamente: si estos tres valores
-      // vuelven a dar cero, vonMisesStress vuelve a mentir.
+      // vuelven a dar cero, vonMisesStress vuelve a mentir. Es también la
+      // prueba de que principalValues usa `eigenvalues` y no `eigenvaluesQR`:
+      // con el QR puro esta matriz da [0, 0, 0].
       const principales = tensors.principalValues(
         new Matrix([[0, 100, 0], [100, 0, 0], [0, 0, 0]]),
       );

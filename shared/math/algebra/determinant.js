@@ -11,7 +11,7 @@
 
 import { rowEchelon } from './gauss.js';
 import { assertSquareMatrix } from '../validation/matrix.js';
-import { MathError } from '../errors/MathError.js';
+import { MathError } from '../errors/math-error.js';
 import { DEFAULT_TOLERANCE } from '../utils/constants.js';
 
 /**

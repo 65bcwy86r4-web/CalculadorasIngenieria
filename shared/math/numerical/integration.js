@@ -7,7 +7,7 @@
  */
 
 import { assertFunction, assertFiniteNumber, assertInteger, assertPositive } from '../validation/numbers.js';
-import { MathError } from '../errors/MathError.js';
+import { MathError } from '../errors/math-error.js';
 
 /**
  * Regla del trapecio compuesta. Si a > b, se integra igual y se devuelve

@@ -230,6 +230,38 @@ export const tests = [
     },
   },
   {
+    name: 'hPa y mbar son la misma unidad y ninguna se desincroniza',
+    fn: () => {
+      // D12: la aeronáutica reporta presión en hectopascales (el QNH de un
+      // altímetro), y mbar ya estaba. Son idénticos por definición del
+      // prefijo, así que la prueba es que lo sigan siendo: si alguien toca
+      // uno de los dos factores, esto lo detecta.
+      assertClose(convertPressure(1, 'hPa', 'Pa'), 100, '1 hPa = 100 Pa.');
+      assertClose(convertPressure(1, 'hPa', 'mbar'), 1, '1 hPa = 1 mbar.');
+      assertClose(convertPressure(1, 'mbar', 'hPa'), 1, 'Y al revés.');
+      assertClose(convertPressure(1, 'bar', 'hPa'), 1000, '1 bar = 1000 hPa.');
+      // Presión estándar al nivel del mar: el valor que un piloto lee como
+      // QNH estándar y que la calculadora ISA va a necesitar.
+      assertClose(convertPressure(1, 'atm', 'hPa'), 1013.25, '1 atm = 1013.25 hPa.');
+      assertClose(convertPressure(STANDARD_PRESSURE, 'Pa', 'hPa'), 1013.25, 'Lo mismo desde la constante ISA.');
+    },
+  },
+  {
+    name: 'la conversión de presión de ida y vuelta con hPa no pierde precisión',
+    fn: () => {
+      // Verificación cruzada: ida y vuelta por cada unidad del catálogo de
+      // presión, pasando por hPa.
+      unitsByCategory['presión'].forEach((unidad) => {
+        const ida = convertPressure(1013.25, 'hPa', unidad);
+        assertClose(
+          convertPressure(ida, unidad, 'hPa'),
+          1013.25,
+          `Ida y vuelta hPa -> ${unidad} -> hPa.`,
+        );
+      });
+    },
+  },
+  {
     name: 'mmHg e inHg son mutuamente consistentes',
     fn: () => {
       // Era el hallazgo H-02: los dos factores estaban redondeados por

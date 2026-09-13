@@ -18,7 +18,7 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 
 | Componente | Estado | Chat responsable |
 |---|---|---|
-| Motor `shared/math/` | Completo y documentado. 35 archivos. Cubierto por la suite. **Sin hallazgos abiertos** (H-01 a H-05 cerrados el 2026-09-13). | 2 |
+| Motor `shared/math/` | Completo y documentado. 35 archivos. Cubierto por la suite. Sin hallazgos abiertos. **95 exportaciones públicas**; nombres de archivo y de función al día con `CODING_STANDARDS.md` (Paso 2a, 2026-09-13). | 2 |
 | `docs/` técnica | Architecture, API, Algorithms, Roadmap completos | 1 / 2 |
 | `docs/governance/` | 4 documentos rectores, versión 1.0 | 1 |
 | `tests/` | **298 pruebas en 16 archivos, todas pasan.** Paso 1 y 1b cerrados. | 5 |
@@ -50,10 +50,23 @@ principal.
 | Chat | Tarea | Estado |
 |---|---|---|
 | 2 | Paso 1b: corregir H-01 a H-05, con H-03 resuelto según ADR-004 | **Cerrado el 2026-09-13** |
+| 2 | Paso 2a: refactores de nombres (ADR-005, D3, D12) | **Cerrado el 2026-09-13** |
 | — | — | Ninguna otra sesión abierta |
 
-Todo lo anterior está commiteado y subido a `develop`. El siguiente es el
-**Paso 2a** (Chat 2, sesión corta) y después el **Paso 3** (Chat 3 + 4).
+El siguiente es el **Paso 3** (Chat 3 + 4): la calculadora de álgebra.
+
+**Pendiente del responsable del proyecto:** el Paso 2a renombró los cuatro
+archivos de `shared/math/errors/` a kebab-case. El puente con la notebook
+escribe archivos pero no los borra, así que **los cuatro archivos viejos siguen
+en la carpeta** y hay que sacarlos antes de commitear:
+
+```
+git rm shared/math/errors/MathError.js shared/math/errors/DimensionError.js ^
+       shared/math/errors/SingularMatrixError.js shared/math/errors/InterpolationError.js
+```
+
+Mientras estén, el motor funciona igual —ningún archivo los importa, verificado—
+pero son código muerto.
 
 ---
 
@@ -96,7 +109,7 @@ verificación correcta quedó en `algebra-eigen.test.js`, `physics.test.js`,
 port va a tocar igual, y porque H-04 es un resultado silenciosamente
 incorrecto en un caso de uso central de la carrera.*
 
-### Paso 2a — Refactores de nombres · Chat 2 · **siguiente**
+### Paso 2a — Refactores de nombres · Chat 2 · ~~siguiente~~ **cerrado el 2026-09-13**
 
 Sesión corta, sin capacidades nuevas. Tres cosas que hay que hacer **antes** de
 que exista un consumidor del motor, porque después cuestan mucho más
@@ -113,10 +126,12 @@ que exista un consumidor del motor, porque después cuestan mucho más
    escrito, y actualizar todos los imports.
 3. **D12**: agregar `hPa` al catálogo de `units/pressure.js`.
 
-Son refactores puros con las 298 pruebas como red: al terminar tienen que seguir
-pasando todas, menos las que se reescriban a propósito por ADR-005.
+Los tres hechos. La suite pasó de 298 a **306 pruebas, todas en verde**.
+Detalle en la bitácora, §6.
 
-### Paso 3 — Versión 3a: calculadora de álgebra sobre el motor · Chat 3 + 4 · **después del 2a**
+**El Paso 3 pasa a ser el siguiente.**
+
+### Paso 3 — Versión 3a: calculadora de álgebra sobre el motor · Chat 3 + 4 · **siguiente**
 
 Reescribir la calculadora de álgebra en `modules/algebra/`, importando
 exclusivamente desde `shared/math/index.js`. Es la prueba de fuego de la API
@@ -152,21 +167,117 @@ más trabajo.
 |---|---|---|---|
 | ~~D1~~ | ~~No hay suite de pruebas en el repo~~ | `tests/` | **Resuelta el 2026-09-13** |
 | D2 | Capacidades del motor v1 aún no portadas. **Los dos ítems de autovalores de prioridad alta —`jacobiEigenDecomposition` y `eigenvalues2x2`— se portaron el 2026-09-13**; queda el resto de ADR-001 §5 | ADR-001 §5 | Media |
-| D3 | `CODING_STANDARDS.md` §2 exige nombres de archivo en kebab-case; el motor usa `MathError.js`, `DimensionError.js` (PascalCase). **Decidido el 2026-09-13: se cumple el estándar, se renombran los archivos.** Se ejecuta en el Paso 2a | `shared/math/errors/` | Media — en curso |
+| ~~D3~~ | ~~Nombres de archivo en PascalCase en `shared/math/errors/`~~ | `shared/math/errors/` | **Resuelta el 2026-09-13** (Paso 2a) |
 | D4 | `DEFAULT_DERIVATIVE_STEP` se exporta desde `utils/constants.js` pero no existe una `numericalDerivative` pública que la use; hoy la derivada numérica está embebida en `newton.js` | `shared/math/` | Media |
 | D5 | Aritmética compleja ausente: bloquea análisis de circuitos de corriente alterna y autovalores complejos | `Roadmap.md`, Versión 5 | Baja — planificada |
 | ~~D6~~ | ~~Sin repositorio git inicializado~~ | — | **Resuelta el 2026-09-13** |
 | ~~D7~~ | ~~`vincular-github.ps1` y `VINCULAR-GITHUB.bat` en la raíz~~ | — | **Resuelta el 2026-09-13** (commit `52dcf14`) |
 | D8 | Los ejemplos de `toScientific` y `formatNumber` en `docs/API.md` contradicen el comportamiento real y el nombre del propio parámetro `significantDigits`. El código está bien; la documentación, no | `docs/API.md` | Baja — Chat 2 |
 | D9 | `cubicSplineInterpolate` tiene 54 líneas de código efectivas, por encima del máximo de 50 de `AI_RULES.md` §10, sin la justificación técnica que ese artículo exige | `shared/math/interpolation/spline.js` | Baja |
-| D10 | `eigenvaluesQR` ya no siempre usa QR. **Resuelto por [ADR-005](adr/ADR-005-api-de-autovalores.md) el 2026-09-13**: `eigenvalues` despacha, `eigenvaluesQR` vuelve a ser QR explícito. Se ejecuta en el Paso 2a | `shared/math/`, `docs/API.md` | Media — en curso |
-| D12 | Falta `hPa` en el catálogo de presión. Está `mbar`, que es numéricamente idéntico, pero la aeronáutica usa hectopascales (el QNH se reporta en hPa) y la calculadora ISA es el Paso 5. Es un alias de una línea | `shared/math/units/pressure.js` | Media — en el Paso 2a |
-| D13 | El camino QR general sigue sin desplazamientos de Wilkinson: no converge con autovalores de igual módulo. Con ADR-005 deja de ser un defecto oculto —`eigenvalues` no lo usa para simétricas y `eigenvaluesQR` lo anuncia—, pero sigue siendo el más débil de los tres métodos | `shared/math/algebra/eigen.js` | Baja |
+| ~~D10~~ | ~~`eigenvaluesQR` ya no siempre usa QR~~ | `shared/math/`, `docs/API.md` | **Resuelta el 2026-09-13** (Paso 2a, según ADR-005) |
+| ~~D12~~ | ~~Falta `hPa` en el catálogo de presión~~ | `shared/math/units/pressure.js` | **Resuelta el 2026-09-13** (Paso 2a) |
+| D13 | El camino QR general sigue sin desplazamientos de Wilkinson: no converge con autovalores de igual módulo. Con ADR-005 dejó de ser un defecto oculto —`eigenvalues` no lo usa para simétricas y `eigenvaluesQR` lo anuncia, con una prueba que lo fija como comportamiento esperado— pero sigue siendo el más débil de los tres métodos | `shared/math/algebra/eigen.js` | Baja |
+| D14 | `eigen.js` quedó en 480 líneas, contra el máximo de 500 de `AI_RULES.md` §10. Todavía cumple, pero la próxima incorporación —D13 es la candidata— lo pasa. Conviene decidir antes cómo se parte: un archivo por método (`jacobi.js`, `qr-eigen.js`) con `eigen.js` como despacho, o autovectores y diagonalización a un archivo propio. Es decisión de organización del motor, no de API | `shared/math/algebra/eigen.js` | Media — decidir en Chat 1 |
 | D11 | `known-defects.test.js` quedó vacío (0 pruebas, el archivo con su explicación intacta) para que el próximo hallazgo tenga dónde anotarse. Si el Chat 5 prefiere borrarlo y recrearlo cuando haga falta, hay que sacarlo también de la estructura de `tests/README.md`, que es su zona | `tests/math/`, `tests/README.md` | Baja — decidir en Chat 5 |
 
 ---
 
 ## 6. Bitácora
+
+### 2026-09-13 — Refactores de nombres del motor (Paso 2a) · Chat 2
+
+**Resumen.** Tres refactores sin capacidades nuevas, hechos ahora porque
+`modules/` sigue vacío y el costo de ruptura es cero (ADR-006 §3).
+
+1. **API de autovalores (ADR-005).** `eigenvalues` es ahora la entrada
+   recomendada y es la que despacha por tipo de matriz; `eigenvaluesQR` volvió a
+   ser el algoritmo QR iterativo, siempre y sin despacho. `jacobiEigenDecomposition`
+   y `eigenvalues2x2` no cambiaron. `diagonalize` y `principalValues` pasaron a
+   apoyarse en `eigenvalues`, que es lo que mantiene H-04 cerrado.
+2. **D3.** Los cuatro archivos de `shared/math/errors/` pasaron a kebab-case, y
+   los 21 archivos del motor que los importan quedaron actualizados.
+3. **D12.** `hPa` entró al catálogo de presión, junto a `mbar`.
+
+La suite pasó de **298 a 306 pruebas, todas en verde**.
+
+**Arquitectura.** Tres decisiones, y una consecuencia que conviene tener escrita:
+
+1. *`eigenvalues` devuelve `method` y no `matrixT`.* `matrixT` era la iterada del
+   QR, y bajo despacho no siempre existe algo que merezca ese nombre: en el caso
+   2×2 no hay iteración ninguna. En su lugar devuelve `method` —`'trivial'`,
+   `'jacobi'`, `'closed-form-2x2'` o `'qr'`—, que es lo que una calculadora
+   necesita para explicar el procedimiento que efectivamente corrió. `matrixT`
+   sigue en `eigenvaluesQR`, donde sí es la iterada.
+2. *La firma es posicional, `eigenvalues(matrix, tolerance, iterations)`.*
+   ADR-005 §3 la escribe como `(matrix, options)`, pero la misma tabla escribe
+   `jacobiEigenDecomposition(matrix, options)`, que ya está publicada como
+   `(matrix, tolerance, maxRotations)`. Se leyó ese `options` como taquigrafía
+   del rol y no como especificación, y se mantuvo la convención posicional del
+   resto del motor. Confirmado con el responsable del proyecto antes de escribir.
+3. *`hPa` y `mbar` comparten constante en vez de derivarse uno del otro.* Son
+   idénticos por definición del prefijo; compartir la constante hace imposible
+   que se desincronicen, que es exactamente lo que había pasado con mmHg e inHg
+   (H-02). Conviven a propósito: la aeronáutica reporta en hPa y `mbar` sigue en
+   uso en instrumental más viejo.
+
+La consecuencia: **`eigenvaluesQR` volvió a no converger con autovalores de
+igual módulo.** No es reabrir H-03. H-03 era un defecto porque esa función era
+la única entrada a los autovalores y su nombre no anunciaba el método; hoy es la
+limitación conocida del QR sin desplazamientos, bajo un nombre que la anuncia,
+con `eigenvalues` al lado resolviendo el caso simétrico por Jacobi. Quedó fijada
+como prueba —con el comentario de qué hacer si algún día falla porque se
+implementó D13— y documentada en `API.md` en un bloque de advertencia y en
+`Algorithms.md` §9.1, donde ahora se distinguen las dos causas de no
+convergencia: autovalores complejos y autovalores reales de igual módulo.
+
+**Compatibilidad.** La API pública pasó de 94 a **95** nombres. Se agregó
+`eigenvalues`; no se eliminó ni se renombró ninguno. `eigenvaluesQR` conserva
+nombre, firma y forma de retorno, y lo único que cambia es que ya no despacha —
+que es el punto del ADR. Las cuatro clases de excepción se siguen exportando con
+el mismo nombre desde `index.js`: cambió el archivo, no la API, y las pruebas ni
+se enteraron porque importan todo desde `index.js`. `hPa` entra al catálogo sin
+desplazar a `mbar`. Fuera de la zona del Chat 2 no se tocó nada: `modules/`,
+`js/`, `css/`, `assets/`, `index.html` y `legacy/` quedan como estaban.
+
+**Verificación.**
+
+- Línea de base antes de tocar nada: 298 pruebas, todas pasan, Node v22.22.2.
+  Al terminar: 306. Las únicas que fallaron en el camino fueron las cuatro de
+  despacho que ADR-005 manda reescribir y las dos de `api-surface.test.js` hasta
+  documentar el nombre nuevo — ninguna sorpresa.
+- Antes de escribir código se corrió el bucle QR puro contra las once matrices
+  que usaban las pruebas, para saber cuáles había que mover y cuáles no. Las
+  cuatro que no convergen (`[[0,50],[50,0]]`, `[[0,1],[1,0]]`, el corte puro 3×3
+  y la rotación) fueron exactamente las que se reescribieron: la migración no se
+  decidió a ojo.
+- Se agregó una prueba de que `eigenvalues` y `eigenvaluesQR` **coinciden** en
+  las matrices donde el QR sí converge. Que difieran donde el QR falla es el
+  punto; que difieran en otro lado sería un error.
+- Se agregó una prueba de que `eigenvaluesQR` conserva la traza de la iterada
+  aunque no converja: cada paso es una semejanza ortogonal, así que la traza es
+  invariante. Confirma que lo que falla es la convergencia del método y no su
+  aritmética.
+- El despacho quedó fijado como contrato: una prueba recorre seis matrices y
+  verifica qué `method` elige cada una.
+- `hPa`: ida y vuelta por cada unidad del catálogo de presión, más la identidad
+  con `mbar` y `1 atm = 1013.25 hPa`, que es el QNH estándar.
+- Tras el renombrado no queda ninguna referencia a las rutas viejas en `shared/`,
+  `tests/` ni `docs/`, verificado por búsqueda. Que Node resuelva el grafo
+  completo desde `index.js` confirma además que no hay diferencias de mayúsculas
+  que Windows perdone y GitHub Pages no.
+- Contra `AI_RULES.md` §10: `eigen.js` quedó en 480 líneas —bajo el máximo de
+  500, pero cerca; queda anotado como D14— y su función más larga en 32 líneas
+  efectivas. Sin `throw` genéricos, sin `var`, sin globales, sin DOM.
+
+**Próximos pasos.** El Paso 3, la calculadora de álgebra (Chat 3 + 4). Dos cosas
+que este chat deja pendientes y no hizo por estar fuera del alcance de la sesión:
+**(a)** D14, cómo partir `eigen.js` antes de que D13 lo pase de 500 líneas — es
+organización interna del motor y conviene decidirlo en frío; **(b)** D8, los
+ejemplos de `toScientific` y `formatNumber` en `API.md`, que siguen
+contradiciendo el comportamiento real y son de esta zona. Y un pedido concreto
+al Chat 5: la fila de `tests/` en §1 sigue diciendo 298 y ahora son 306.
+
+---
 
 ### 2026-09-13 — Corrección de los cinco hallazgos del motor (Paso 1b) · Chat 2
 

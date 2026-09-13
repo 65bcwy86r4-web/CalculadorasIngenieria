@@ -15,7 +15,7 @@
  */
 
 import { assertFiniteNumber } from '../validation/numbers.js';
-import { MathError } from '../errors/MathError.js';
+import { MathError } from '../errors/math-error.js';
 
 /**
  * @param {number} n - entero no negativo

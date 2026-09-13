@@ -1,8 +1,9 @@
 /**
  * tests/math/algebra-eigen.test.js
  * ---------------------------------------------------------------------------
- * Pruebas de autovalores y autovectores: eigenvaluesQR, eigenvectorFor,
- * eigenvectors y diagonalize.
+ * Pruebas de autovalores y autovectores: eigenvalues (la entrada que
+ * despacha), los tres métodos por su nombre —eigenvaluesQR, Jacobi y la
+ * forma cerrada 2x2—, eigenvectorFor, eigenvectors y diagonalize.
  *
  * Es el módulo con más margen de error del motor: eigenvaluesQR es iterativo y
  * aproximado, así que las tolerancias acá son necesariamente más flojas que en
@@ -19,18 +20,23 @@
  *   verificación correcta que estaba fijada en known-defects.test.js, y se
  *   agregó la cobertura de las dos funciones portadas desde legacy/motor-v1/
  *   por ADR-004: jacobiEigenDecomposition y eigenvalues2x2.
+ * Modificado: 2026-09-13 — Chat 2. Por ADR-005, las pruebas de despacho se
+ *   mudaron de eigenvaluesQR a eigenvalues, y eigenvaluesQR recuperó las
+ *   suyas de QR puro, incluida la que fija su no convergencia con
+ *   autovalores de igual módulo como comportamiento esperado del método.
  * Dependencias: shared/math/index.js, tests/assert.js
  * ---------------------------------------------------------------------------
  */
 
 import {
-  eigenvaluesQR, jacobiEigenDecomposition, eigenvalues2x2,
+  eigenvalues, eigenvaluesQR, jacobiEigenDecomposition, eigenvalues2x2,
   eigenvectorFor, eigenvectors, diagonalize,
   Matrix, MathError, DimensionError,
 } from '../../shared/math/index.js';
 
 import {
-  assertTrue, assertFalse, assertEqual, assertClose, assertMatrixClose, assertThrows,
+  assertTrue, assertFalse, assertEqual, assertClose, assertVectorClose,
+  assertMatrixClose, assertThrows,
 } from '../assert.js';
 
 /**
@@ -142,41 +148,108 @@ export const tests = [
     },
   },
 
-  /* ------------------- autovalores de igual módulo (ex H-03) ------------------- */
+  /* ------------- límite del QR puro: autovalores de igual módulo ------------- */
   {
-    name: 'eigenvaluesQR resuelve una simétrica con autovalores ±λ',
+    name: 'eigenvaluesQR NO converge con autovalores de igual módulo',
     fn: () => {
-      // Era el hallazgo H-03: la iteración QR sin desplazamiento no converge
-      // cuando dos autovalores tienen el mismo módulo, y devolvía [0, 0]. Con
-      // el despacho por tipo de matriz de ADR-004 el caso simétrico va por
-      // Jacobi, que no tiene esa limitación y además da el valor exacto.
-      const { values } = eigenvaluesQR(new Matrix([[0, 50], [50, 0]]));
+      // Comportamiento ESPERADO, no defecto. La iteración QR sin
+      // desplazamiento no separa autovalores del mismo módulo: la matriz
+      // [[0,50],[50,0]] tiene autovalores exactos ±50, y la iterada nunca
+      // triangulariza, así que la diagonal queda en ceros.
+      //
+      // Esta prueba existe para que la limitación esté escrita y fijada. Fue
+      // el hallazgo H-03 mientras esta función era la única entrada a los
+      // autovalores y su nombre no anunciaba el método (ADR-004). Desde
+      // ADR-005 la entrada general es `eigenvalues`, que despacha a Jacobi en
+      // el caso simétrico y da el valor exacto; `eigenvaluesQR` es el
+      // algoritmo QR pedido explícitamente, y esto es lo que ese algoritmo
+      // hace. Mejorarlo con desplazamientos de Wilkinson es la deuda D13.
+      //
+      // Si algún día esta prueba falla porque devuelve [50, -50], no es una
+      // regresión: es que se implementó D13. Hay que reescribirla entonces,
+      // no revertir el cambio.
+      const salida = eigenvaluesQR(new Matrix([[0, 50], [50, 0]]));
+      assertVectorClose(
+        salida.values,
+        [0, 0],
+        'El QR sin desplazamiento no converge acá; la diagonal queda en cero.',
+      );
+      assertTrue(
+        salida.hasComplexHint,
+        'Debería avisar que la iteración no triangularizó.',
+      );
+      assertTrue(
+        Math.abs(salida.matrixT.data[1][0]) > 1,
+        'El elemento subdiagonal debería seguir siendo grande: eso es la no convergencia.',
+      );
+    },
+  },
+  {
+    name: 'eigenvaluesQR conserva la traza aunque no converja',
+    fn: () => {
+      // Cada paso QR es una transformación de semejanza ortogonal, así que la
+      // traza de la iterada es invariante. Que se conserve con la iteración
+      // sin converger confirma que el método está bien implementado y que lo
+      // que falla es su convergencia, no su aritmética.
+      const A = new Matrix([[0, 50], [50, 0]]);
+      const { matrixT } = eigenvaluesQR(A);
+      assertClose(matrixT.trace(), A.trace(), 'Traza de la iterada vs. traza de A.', TOLERANCIA_ITERATIVA);
+    },
+  },
+
+  /* -------------------------- eigenvalues (despacho) -------------------------- */
+  {
+    name: 'eigenvalues resuelve una simétrica con autovalores ±λ',
+    fn: () => {
+      // El mismo caso donde el QR puro no converge. La entrada que despacha
+      // manda las simétricas a Jacobi, que sí converge, y sale exacto.
+      const { values } = eigenvalues(new Matrix([[0, 50], [50, 0]]));
       assertEigenvalues(values, [50, -50], 'Simétrica de autovalores opuestos.');
     },
   },
   {
-    name: 'eigenvaluesQR ordena los autovalores de mayor a menor',
+    name: 'eigenvalues ordena los autovalores de mayor a menor',
     fn: () => {
-      const { values } = eigenvaluesQR(new Matrix([[0, 50], [50, 0]]));
+      const { values } = eigenvalues(new Matrix([[0, 50], [50, 0]]));
       assertClose(values[0], 50, 'Primero el mayor.', TOLERANCIA_ITERATIVA);
       assertClose(values[1], -50, 'Después el menor.', TOLERANCIA_ITERATIVA);
     },
   },
   {
-    name: 'eigenvaluesQR resuelve el tensor de corte puro 3x3',
+    name: 'eigenvalues resuelve el tensor de corte puro 3x3',
     fn: () => {
       // Autovalores exactos +τ, 0, −τ. Es la matriz que hacía que
       // vonMisesStress devolviera cero (H-04).
-      const { values } = eigenvaluesQR(new Matrix([[0, 100, 0], [100, 0, 0], [0, 0, 0]]));
+      const { values } = eigenvalues(new Matrix([[0, 100, 0], [100, 0, 0], [0, 0, 0]]));
       assertEigenvalues(values, [100, 0, -100], 'Corte puro 3x3.');
     },
   },
   {
-    name: 'hasComplexHint es false para toda matriz simétrica',
+    name: 'eigenvalues informa qué método usó en cada tipo de matriz',
     fn: () => {
-      // Contraprueba del falso positivo que dejaba H-03: por el teorema
-      // espectral, toda matriz simétrica real tiene autovalores reales, así
-      // que marcar complejos ahí es siempre un error.
+      // El despacho de ADR-005 es contrato público, no detalle interno: una
+      // calculadora lo necesita para explicar el procedimiento. Si alguien
+      // cambia el criterio, esta prueba lo dice.
+      const casos = [
+        { matriz: new Matrix([[6]]), metodo: 'trivial', que: '1x1' },
+        { matriz: new Matrix([[2, 1], [1, 2]]), metodo: 'jacobi', que: 'simétrica 2x2' },
+        { matriz: new Matrix([[0, 100, 0], [100, 0, 0], [0, 0, 0]]), metodo: 'jacobi', que: 'simétrica 3x3' },
+        { matriz: new Matrix([[3, 2], [1, 4]]), metodo: 'closed-form-2x2', que: '2x2 no simétrica' },
+        { matriz: new Matrix([[0, -1], [1, 0]]), metodo: 'closed-form-2x2', que: 'rotación' },
+        { matriz: new Matrix([[3, 7, 2], [0, 5, 9], [0, 0, -1]]), metodo: 'qr', que: '3x3 no simétrica' },
+      ];
+      casos.forEach(({ matriz, metodo, que }) => {
+        assertEqual(eigenvalues(matriz).method, metodo, `Método elegido para ${que}.`);
+      });
+    },
+  },
+  {
+    name: 'eigenvalues no marca complejos en ninguna matriz simétrica',
+    fn: () => {
+      // Por el teorema espectral, toda matriz simétrica real tiene
+      // autovalores reales, así que marcar complejos ahí es siempre un error.
+      // Incluye las tres matrices donde el QR puro no converge: es
+      // exactamente la diferencia entre las dos funciones.
       const simetricas = [
         new Matrix([[0, 1], [1, 0]]),
         new Matrix([[2, 1], [1, 2]]),
@@ -186,10 +259,21 @@ export const tests = [
       ];
       simetricas.forEach((matriz, i) => {
         assertFalse(
-          eigenvaluesQR(matriz).hasComplexHint,
+          eigenvalues(matriz).hasComplexHint,
           `La simétrica ${i} no debería marcar autovalores complejos.`,
         );
       });
+    },
+  },
+  {
+    name: 'eigenvalues marca complejos en la rotación de 90°',
+    fn: () => {
+      // Acá el aviso es exacto y no heurístico: sale del signo del
+      // discriminante del polinomio característico, no de mirar si quedó
+      // residuo en la subdiagonal después de 500 iteraciones.
+      const salida = eigenvalues(new Matrix([[0, -1], [1, 0]]));
+      assertTrue(salida.hasComplexHint, 'Autovalores ±i: debería marcarlo.');
+      assertEqual(salida.method, 'closed-form-2x2', 'Y debería haberlo decidido por la forma cerrada.');
     },
   },
   {
@@ -197,9 +281,40 @@ export const tests = [
     fn: () => {
       // Verificación cruzada independiente del algoritmo: tr(A) = Σλᵢ.
       const A = new Matrix([[0, 50], [50, 0]]);
-      const { values } = eigenvaluesQR(A);
+      const { values } = eigenvalues(A);
       const suma = values.reduce((acumulado, valor) => acumulado + valor, 0);
       assertClose(suma, A.trace(), 'Suma de autovalores vs. traza.', TOLERANCIA_ITERATIVA);
+    },
+  },
+  {
+    name: 'eigenvalues coincide con eigenvaluesQR donde el QR sí converge',
+    fn: () => {
+      // Las dos funciones no son alternativas arbitrarias: donde el QR
+      // converge, tienen que dar lo mismo. Si dejan de coincidir, uno de los
+      // dos caminos se rompió.
+      const convergen = [
+        new Matrix([[2, 1], [1, 2]]),
+        new Matrix([[3, 7, 2], [0, 5, 9], [0, 0, -1]]),
+        new Matrix([[4, 1, 0], [1, 4, 1], [0, 1, 4]]),
+      ];
+      convergen.forEach((matriz, i) => {
+        assertEigenvalues(
+          eigenvalues(matriz).values,
+          eigenvaluesQR(matriz).values,
+          `Matriz ${i}: las dos entradas deberían coincidir.`,
+        );
+      });
+    },
+  },
+  {
+    name: 'eigenvalues exige matriz cuadrada',
+    fn: () => {
+      assertThrows(
+        () => eigenvalues(new Matrix([[1, 2, 3], [4, 5, 6]])),
+        DimensionError,
+        'DIMENSION_ERROR',
+        'Autovalores de una 2x3.',
+      );
     },
   },
 

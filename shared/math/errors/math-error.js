@@ -1,5 +1,5 @@
 /**
- * MathError.js
+ * math-error.js
  * ---------------------------------------------------------------------------
  * Clase base de todos los errores del motor matemático compartido
  * (shared/math). Ninguna parte del motor debe usar `throw "texto"` ni
@@ -17,7 +17,7 @@
  * sin acoplarse al texto exacto del mensaje (que puede cambiar).
  *
  * @example
- * import { MathError } from '../errors/MathError.js';
+ * import { MathError } from '../errors/math-error.js';
  * try {
  *   throw new MathError('El valor no es un número finito.', 'NOT_FINITE', { value: NaN });
  * } catch (e) {

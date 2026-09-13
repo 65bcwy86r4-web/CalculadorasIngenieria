@@ -7,7 +7,7 @@
 
 import { Matrix } from './matrix.js';
 import { assertSquareMatrix } from '../validation/matrix.js';
-import { SingularMatrixError } from '../errors/SingularMatrixError.js';
+import { SingularMatrixError } from '../errors/singular-matrix-error.js';
 import { DEFAULT_TOLERANCE } from '../utils/constants.js';
 
 /**

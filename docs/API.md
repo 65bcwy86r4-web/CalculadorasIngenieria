@@ -169,14 +169,45 @@ Transpuesta de la matriz de cofactores. Para n > 6 usa `det(A)·A⁻¹` internam
 **Excepciones:** `DimensionError` si no es cuadrada o no simétrica; `MathError` (`NOT_POSITIVE_DEFINITE`) si no es definida positiva.
 **Ejemplo:** `choleskyDecomposition(new Matrix([[4,2],[2,3]]))`
 
-### `eigenvaluesQR(matrix, iterations = 500)`
-Autovalores reales de una matriz cuadrada, ordenados de mayor a menor. **Despacha al método adecuado según el tipo de matriz** (ADR-004): 1×1 trivial, simétrica de cualquier orden por rotaciones de Jacobi, 2×2 no simétrica por la forma cerrada del polinomio característico, y el resto por QR iterativo. `iterations` solo afecta al camino QR.
+### Autovalores: cuál de las cuatro funciones usar
 
-`matrixT` es la matriz semejante a `A` que produjo el método elegido —diagonal en Jacobi, la iterada `Aₖ` en QR—. `hasComplexHint` avisa que el espectro puede tener pares complejos conjugados, que el motor no representa todavía; para una matriz simétrica es siempre `false`, por el teorema espectral.
+El problema admite varios algoritmos y ninguno es el mejor en todos los casos, así que la API expone **una entrada que elige** y **cada método por su nombre** (ADR-005):
+
+| Función | Cuándo |
+|---|---|
+| **`eigenvalues`** | **Por defecto.** Quiero los autovalores y no me importa con qué método |
+| `eigenvaluesQR` | Quiero el algoritmo QR en particular — para mostrarlo corriendo |
+| `jacobiEigenDecomposition` | Quiero Jacobi en particular, o necesito los autovectores junto con los autovalores |
+| `eigenvalues2x2` | Quiero la forma cerrada en particular, o necesito distinguir el par complejo |
+
+Si estás eligiendo a ciegas, es `eigenvalues`.
+
+### `eigenvalues(matrix, tolerance = 1e-10, iterations = 500)`
+**Entrada recomendada.** Autovalores reales de una matriz cuadrada, de mayor a menor. Despacha al método adecuado según el tipo de matriz:
+
+| Caso | Método | `method` |
+|---|---|---|
+| 1×1 | el único elemento | `'trivial'` |
+| simétrica de cualquier orden | rotaciones de Jacobi | `'jacobi'` |
+| 2×2 no simétrica | forma cerrada del polinomio característico | `'closed-form-2x2'` |
+| general | QR iterativo | `'qr'` |
+
+`method` dice cuál se usó, que es lo que una calculadora necesita para explicar el procedimiento. `hasComplexHint` avisa que el espectro puede tener pares complejos conjugados, que el motor no representa todavía; para una matriz simétrica es siempre `false`, por el teorema espectral. `iterations` solo afecta al camino QR.
+**Retorna:** `{ values: number[], method: string, hasComplexHint: boolean }`
+**Excepciones:** `DimensionError` si no es cuadrada.
+**Ejemplo:** `eigenvalues(new Matrix([[2,1],[1,2]])).values // [3, 1]`
+**Ejemplo:** `eigenvalues(new Matrix([[0,50],[50,0]])) // { values: [50, -50], method: 'jacobi', hasComplexHint: false }`
+
+### `eigenvaluesQR(matrix, iterations = 500)`
+Autovalores por el **algoritmo QR iterativo, siempre y sin despacho**: `Aₖ = QₖRₖ`, `Aₖ₊₁ = RₖQₖ`. Útil para mostrar ese algoritmo en particular, con su iterada y su estado de convergencia.
+
+> **Limitación del método, no defecto de la función.** La iteración sin desplazamiento **no converge** cuando dos autovalores tienen el mismo módulo (`±λ`, o un par complejo conjugado): queda un bloque 2×2 sin reducir, la diagonal no son los autovalores y `hasComplexHint` se pone en `true`. Si lo que querés son los autovalores y no este algoritmo, usá **`eigenvalues`**, que despacha a Jacobi en el caso simétrico. Mejorar este camino con desplazamientos de Wilkinson es la deuda D13.
+
+`matrixT` es la iterada `Aₖ` al terminar. `hasComplexHint` acá significa "la iteración no triangularizó", que puede deberse tanto a autovalores complejos como a autovalores reales de igual módulo.
 **Retorna:** `{ values: number[], matrixT: Matrix, hasComplexHint: boolean }`
 **Excepciones:** `DimensionError` si no es cuadrada.
 **Ejemplo:** `eigenvaluesQR(new Matrix([[2,1],[1,2]])).values // [3, 1]`
-**Ejemplo:** `eigenvaluesQR(new Matrix([[0,50],[50,0]])).values // [50, -50]`
+**Ejemplo:** `eigenvaluesQR(new Matrix([[0,50],[50,0]])) // { values: [0, 0], hasComplexHint: true } — no convergió; usar eigenvalues`
 
 ### `jacobiEigenDecomposition(matrix, tolerance = 1e-10, maxRotations = 1000)`
 Autovalores **y** autovectores de una matriz simétrica real por rotaciones de Jacobi. Converge siempre para matrices simétricas, incluso con autovalores repetidos o de igual módulo. Los autovectores salen ortonormales y en el mismo orden que los autovalores.
@@ -196,7 +227,7 @@ Autovector para un autovalor dado, vía núcleo de `(A - λI)`.
 **Retorna:** `number[] | null`
 **Ejemplo:** `eigenvectorFor(new Matrix([[2,1],[1,2]]), 3)`
 
-### `eigenvectors(matrix, eigenvalues)`
+### `eigenvectors(matrix, values)`
 **Retorna:** `Array<{ lambda: number, vector: number[]|null }>`
 **Ejemplo:** `eigenvectors(new Matrix([[2,1],[1,2]]), [3, 1])`
 
@@ -339,7 +370,7 @@ convert(5, 'kg', 'm');      // lanza DimensionError
 Unidades: `m, km, cm, mm, mi, yd, ft, in, nmi`. **Ejemplo:** `convertDistance(1, 'nmi', 'km') // 1.852`
 
 ### `convertPressure(value, from, to)`
-Unidades: `Pa, kPa, atm, bar, mbar, mmHg, psi, inHg`. El milímetro de mercurio se define como el torr (`101325/760` Pa) y la pulgada de mercurio se deriva de él (`25.4 mmHg`), de modo que `1 atm = 760 mmHg` y `1 inHg = 25.4 mmHg` son exactos. **Ejemplo:** `convertPressure(1, 'atm', 'Pa') // 101325`
+Unidades: `Pa, hPa, kPa, atm, bar, mbar, mmHg, psi, inHg`. El milímetro de mercurio se define como el torr (`101325/760` Pa) y la pulgada de mercurio se deriva de él (`25.4 mmHg`), de modo que `1 atm = 760 mmHg` y `1 inHg = 25.4 mmHg` son exactos. `hPa` y `mbar` son la misma unidad (100 Pa) y conviven a propósito: la aeronáutica y la meteorología reportan en hectopascales — el QNH de un altímetro viene en hPa — y `mbar` sigue en uso en instrumental más viejo. **Ejemplos:** `convertPressure(1, 'atm', 'Pa') // 101325`, `convertPressure(1, 'atm', 'hPa') // 1013.25`
 
 ### `convertTemperature(value, from, to)`
 Unidades: `K, C, F, R`. Conversión afín (no solo proporcional). **Ejemplo:** `convertTemperature(32, 'F', 'C') // 0`
@@ -422,6 +453,12 @@ reexportan desde `index.js`.)*
 
 Todas extienden `Error` (directa o indirectamente) y agregan `code`
 (string estable) y `context` (objeto con datos de depuración).
+
+Los archivos que las definen están en kebab-case, como todo el resto del
+proyecto (`CODING_STANDARDS.md` §2): `math-error.js`, `dimension-error.js`,
+`singular-matrix-error.js`, `interpolation-error.js`. Es implementación
+interna — las clases se importan desde `shared/math/index.js` y sus nombres
+no cambiaron.
 
 | Clase | Extiende | `code` por defecto | Uso típico |
 |---|---|---|---|

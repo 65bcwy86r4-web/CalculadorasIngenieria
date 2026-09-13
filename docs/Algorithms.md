@@ -338,8 +338,8 @@ si no es definida positiva.
 (los escalares para los que existe `v ≠ 0` con `Av = λv`).
 
 **Por qué hay tres métodos y no uno.** No existe un algoritmo que sea a la
-vez el más general y el más exacto. El motor elige según la forma de la
-matriz (ADR-004):
+vez el más general y el más exacto. `eigenvalues` elige según la forma de
+la matriz (ADR-004):
 
 | Caso | Método | Sección |
 |---|---|---|
@@ -352,10 +352,17 @@ El despacho no es una optimización: es lo que hace correcto el caso
 simétrico. La iteración QR sin desplazamiento **no converge** cuando dos
 autovalores tienen el mismo módulo y signo opuesto, que es exactamente el
 espectro de un tensor de corte puro (`±τ`, y `0`). Mientras ese fue el
-único camino, `eigenvaluesQR([[0,τ],[τ,0]])` devolvía `[0, 0]` y
+único camino, pedir autovalores de `[[0,τ],[τ,0]]` devolvía `[0, 0]` y
 `vonMisesStress` informaba "material sin solicitación" para un eje a
-torsión. La entrada pública sigue llamándose `eigenvaluesQR` por
-compatibilidad de la API.
+torsión.
+
+**Una entrada que elige, y cada método por su nombre.** Cada uno de los
+tres algoritmos se expone además por separado —`eigenvaluesQR`,
+`jacobiEigenDecomposition`, `eigenvalues2x2`— porque poder pedir uno en
+particular y verlo correr es contenido didáctico, no solo mecánica interna
+(ADR-005). La consecuencia es que `eigenvaluesQR` **sí** exhibe la
+limitación de arriba: es el algoritmo QR, y eso es lo que el algoritmo QR
+hace. Quien quiere los autovalores sin elegir método usa `eigenvalues`.
 
 ---
 
@@ -384,17 +391,27 @@ El motor usa una cantidad fija de iteraciones (500 por defecto,
 de producción como LAPACK, que usan el shift de Wilkinson para acelerar
 drásticamente la convergencia — una mejora pendiente, ver `Roadmap.md`).
 
-**Autovalores complejos:** si `A` tiene un par de autovalores complejos
-conjugados, el algoritmo sin shifts no los triangulariza del todo: deja
-un bloque `2×2` no nulo bajo la diagonal en esa posición. El motor
-detecta esto (`hasComplexHint`) revisando si queda algún elemento
-significativo en la subdiagonal al terminar las iteraciones, y lo
-informa en vez de reportar un resultado incorrecto como si fuera válido.
+**Cuándo no converge, y qué informa:** el método falla en dos situaciones,
+y las dos se manifiestan igual —un bloque `2×2` no nulo bajo la diagonal—:
+
+1. **Autovalores complejos conjugados.** No hay forma triangular real a la
+   que converger.
+2. **Autovalores reales de igual módulo** (`±λ`). La razón `|λᵢ₊₁/λᵢ|`
+   vale 1 y la iteración no separa nunca los dos subespacios.
+
+`hasComplexHint` se pone en `true` revisando si queda algún elemento
+significativo en la subdiagonal al terminar, y cubre los dos casos: el
+nombre dice "complejos" porque es la causa más frecuente, pero lo que
+afirma en rigor es que *la iteración no triangularizó* y que la diagonal
+no son los autovalores. Es preferible a reportar un resultado incorrecto
+como si fuera válido, y es la razón por la que `eigenvalues` no manda las
+matrices simétricas por acá.
 
 **Complejidad:** `O(n³)` por iteración (una factorización QR completa),
 así que `O(k·n³)` en total para `k` iteraciones.
 
-**Implementación:** `algebra/eigen.js::eigenvaluesQR`, camino general.
+**Implementación:** `algebra/eigen.js::eigenvaluesQR`. Es también el camino
+general de `eigenvalues`, para matrices no simétricas de orden mayor que 2.
 
 ---
 
@@ -485,10 +502,24 @@ subdiagonal después de 500 iteraciones.
 
 ---
 
+### 9.4 Qué función llamar
+
+| Función | Ejecuta | Cuándo |
+|---|---|---|
+| `eigenvalues` | el método que corresponda | por defecto: quiero los autovalores |
+| `eigenvaluesQR` | 9.1, siempre | quiero ver el QR corriendo |
+| `jacobiEigenDecomposition` | 9.2, solo simétricas | quiero Jacobi, o necesito los autovectores |
+| `eigenvalues2x2` | 9.3, solo 2×2 | quiero la forma cerrada, o distinguir el par complejo |
+
+`eigenvalues` informa en `method` cuál eligió, para que una calculadora
+pueda explicar el procedimiento que efectivamente se ejecutó.
+
+---
+
 ## 10. Autovectores — Núcleo de (A − λI)
 
-**Objetivo:** dado un autovalor `λ` (ya conocido, típicamente por la
-sección 9), hallar un vector `v ≠ 0` con `Av = λv`.
+**Objetivo:** dado un autovalor `λ` (ya conocido, típicamente por
+`eigenvalues`, sección 9), hallar un vector `v ≠ 0` con `Av = λv`.
 
 **Derivación:** `Av = λv ⟺ Av − λv = 0 ⟺ (A − λI)v = 0`. Es decir, `v`
 es cualquier vector no nulo del **núcleo** (espacio nulo) de `A − λI`

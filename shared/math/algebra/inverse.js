@@ -10,7 +10,7 @@ import { Matrix } from './matrix.js';
 import { reducedRowEchelon } from './gauss.js';
 import { determinantByGauss } from './determinant.js';
 import { assertSquareMatrix } from '../validation/matrix.js';
-import { SingularMatrixError } from '../errors/SingularMatrixError.js';
+import { SingularMatrixError } from '../errors/singular-matrix-error.js';
 import { DEFAULT_TOLERANCE } from '../utils/constants.js';
 
 /**

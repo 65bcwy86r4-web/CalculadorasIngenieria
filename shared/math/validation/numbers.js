@@ -14,7 +14,7 @@
  * ---------------------------------------------------------------------------
  */
 
-import { MathError } from '../errors/MathError.js';
+import { MathError } from '../errors/math-error.js';
 
 /**
  * @param {*} value
