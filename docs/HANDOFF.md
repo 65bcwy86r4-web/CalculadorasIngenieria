@@ -22,7 +22,7 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 | `docs/` técnica | Architecture, API, Algorithms, Roadmap completos | 1 / 2 |
 | `docs/governance/` | 4 documentos rectores, versión 1.0 | 1 |
 | `tests/` | **313 pruebas en 17 archivos, todas pasan.** Pasos 1, 1b, 2a y 2c-1 cerrados. Incluye `steps-contract.test.js`. | 5 |
-| `modules/` | **Vacío.** Ninguna calculadora consume el motor todavía. | 3 |
+| `modules/` | **`algebra/` completa (Versión 3a, Paso 3).** 21 archivos, 27 operaciones, importando solo desde `shared/math/index.js`. Primer consumidor real de la API pública. Sin estilos: `css/algebra.css` todavía no existe (Chat 4). | 3 |
 | `css/`, `assets/`, `js/` | Vacíos | 4 / 3 |
 | `legacy/` | Congelado. No se importa desde ningún lado. | — |
 
@@ -53,6 +53,7 @@ principal.
 | 2 | Paso 1b: corregir H-01 a H-05, con H-03 resuelto según ADR-004 | **Cerrado el 2026-09-13** |
 | 2 | Paso 2a: refactores de nombres (ADR-005, D3, D12) | **Cerrado el 2026-09-13** |
 | 2 | Paso 2c-1: congelar el contrato de `steps` (ADR-007) | **Cerrado el 2026-09-13** |
+| 3 | Paso 3: calculadora de álgebra en `modules/algebra/` (Versión 3a) | **Cerrado el 2026-09-13** |
 | — | — | Ninguna otra sesión abierta |
 
 **El contrato está congelado: el Paso 3 puede arrancar.** El Chat 3 tiene en
@@ -161,16 +162,35 @@ cuatro grupos de [ADR-007](adr/ADR-007-contrato-de-steps.md) §4. Puede repartir
 en varias sesiones y **puede correr en paralelo con el Paso 3**, porque el
 contrato ya está congelado y las zonas no se tocan.
 
-### Paso 3 — Versión 3a: calculadora de álgebra sobre el motor · Chat 3 + 4 · **siguiente**
+### Paso 3 — Versión 3a: calculadora de álgebra sobre el motor · Chat 3 + 4 · ~~siguiente~~ **la parte del Chat 3, cerrada el 2026-09-13**
 
 Reescribir la calculadora de álgebra en `modules/algebra/`, importando
 exclusivamente desde `shared/math/index.js`. Es la prueba de fuego de la API
 pública: si aparece la necesidad de una función que no existe, es señal de que
 algo quedó mal cubierto en la Versión 2 (`Roadmap.md`, Versión 3).
 
-Referencia funcional: `legacy/calculadora-algebra-v1/` (25 operaciones,
-procedimiento paso a paso, historial, exportación, pegado desde planilla,
-atajos de teclado). Es referencia de **qué** hace, no de **cómo** está escrito.
+Referencia funcional: `legacy/calculadora-algebra-v1/`, que tiene **27**
+operaciones —no 25, ver la bitácora—, procedimiento paso a paso, historial,
+exportación, pegado desde planilla y atajos de teclado. Es referencia de **qué**
+hace, no de **cómo** está escrito.
+
+Hecho: 21 archivos, las 27 operaciones, **sin un solo pedido al motor**. La API
+pública alcanzó tal cual está. Detalle en la bitácora, §6.
+
+**Falta la mitad del Chat 4**, que es lo que sigue de este paso:
+
+### Paso 3b — Estilos de la calculadora de álgebra · Chat 4 · *propuesto por el Chat 3*
+
+`modules/algebra/index.html` sale con clases semánticas y **sin hoja de
+estilos**: enlaza `css/algebra.css`, que todavía no existe, así que hoy la
+calculadora funciona pero se ve sin formato. El contrato de clases —qué genera
+el JavaScript y qué estructura esperar en cada panel— está escrito como
+comentario al principio de ese `index.html`, para no obligar a leer el código.
+
+Un punto que conviene mirar con atención: `.step-snapshot` es **opcional**. La
+mayoría de los pasos no lo trae, y el diseño no puede depender de que esté.
+
+*Propuesta del Chat 3; la confirma el responsable del proyecto o el Chat 1.*
 
 ### Paso 2b — El resto del port desde el motor v1 · Chat 2
 
@@ -210,11 +230,133 @@ más trabajo.
 | D13 | El camino QR general sigue sin desplazamientos de Wilkinson: no converge con autovalores de igual módulo. Con ADR-005 dejó de ser un defecto oculto —`eigenvalues` no lo usa para simétricas y `eigenvaluesQR` lo anuncia, con una prueba que lo fija como comportamiento esperado— pero sigue siendo el más débil de los tres métodos | `shared/math/algebra/eigen.js` | Baja |
 | ~~D14~~ | ~~`eigen.js` cerca del máximo de 500 líneas de `AI_RULES.md` §10~~ | `shared/math/algebra/` | **Resuelta el 2026-09-13** (Paso 2c-1, división por método de ADR-007 §3.5) |
 | D15 | **Resuelto por [ADR-007](adr/ADR-007-contrato-de-steps.md) el 2026-09-13**; se ejecuta en los Pasos 2c-1 y 2c-2. El contrato de `steps` no es uniforme: 7 funciones de álgebra devuelven `{type, text, snapshot}`, `luDecomposition` devuelve `{type, text}` sin `snapshot`, y 9 no devuelven `steps` (`determinantByCofactors`, `adjugate`, `cofactorMatrix`, `qrDecomposition`, `choleskyDecomposition`, `eigenvalues`, `eigenvectors`, `diagonalize`, `conditionNumber`). Además el dato principal se llama distinto en cada una (`value`, `result`, `inverse`, `rank`, `solution`, `values`, `L/U/P`...). La V1 mostraba el procedimiento de las 25 operaciones; con esto la Versión 3a no puede igualarla en 9. Detectado en el relevamiento previo al Paso 3 | `shared/math/algebra/`, `docs/API.md` | **Media — la forma está congelada (Paso 2c-1, 2026-09-13); falta el contenido (Paso 2c-2)** |
+| D17 | `docs/API.md`, sección "El contrato de `steps`", sigue listando `unique`, `infinite` e `incompatible` en la tabla de vocabulario de `type` — 13 tipos, donde ADR-007 §3.3 enmendado tiene 10. Es la misma confusión que cerró D16, que quedó corregida en el ADR y no en API.md. **Evidencia:** `API.md` líneas 47–57 contra `ADR-007` §3.3 y su enmienda. La calculadora se implementó contra los 10 del ADR. Detectado por el Chat 3 en el relevamiento del Paso 3 | `docs/API.md` | Media — Chat 2 |
+| D18 | Los métodos de la clase `Matrix` quedan fuera del contrato de `steps`: `transpose`, `trace`, `add`, `subtract`, `multiply`, `scalarMultiply`, `power`, `frobeniusNorm`, las cinco de clasificación y los constructores `identity`/`diagonal` devuelven una `Matrix` o un número pelados, sin clave `steps` —ni siquiera vacía—. No es un defecto: ADR-007 §3.4 no los alcanza. Pero son **12 de las 27 operaciones** de la calculadora, que quedan sin desarrollo posible, y la V1 sí mostraba procedimiento para varias (por ejemplo, el producto elemento a elemento). Si se quiere que lo tengan, es decisión del Chat 1 y trabajo del Chat 2. La interfaz ya las distingue de las que tienen `steps: []` | `shared/math/algebra/matrix.js`, ADR-007 | Baja — decidir en Chat 1 |
 | D11 | `known-defects.test.js` quedó vacío (0 pruebas, el archivo con su explicación intacta) para que el próximo hallazgo tenga dónde anotarse. Si el Chat 5 prefiere borrarlo y recrearlo cuando haga falta, hay que sacarlo también de la estructura de `tests/README.md`, que es su zona | `tests/math/`, `tests/README.md` | Baja — decidir en Chat 5 |
 
 ---
 
 ## 6. Bitácora
+
+### 2026-09-13 — Calculadora de álgebra sobre el motor (Paso 3) · Chat 3
+
+**Resumen.** `modules/` deja de estar vacío. La calculadora de álgebra quedó
+reescrita en `modules/algebra/`: 21 archivos, ~2.400 líneas, las **27**
+operaciones de la V1, importando exclusivamente desde `shared/math/index.js`.
+Están el procedimiento paso a paso, el historial, la exportación a TXT/CSV/PDF,
+el pegado desde planilla y los seis atajos de teclado.
+
+**Lo más importante del paso, y conviene que quede escrito: no hizo falta un
+solo pedido al motor.** Las 95 exportaciones cubrieron las 27 operaciones sin
+un hueco. Es la prueba de fuego que ADR-006 puso en este paso, y la API pública
+la pasó tal cual está.
+
+Dos correcciones de relevamiento, las dos con evidencia:
+
+1. **Son 27 operaciones, no 25.** El número 25 venía de `ADR-007` §1 y se
+   repitió en §4 de este archivo. Contadas del `<nav>` de
+   `legacy/calculadora-algebra-v1/index.html` (líneas 45–91) y del `OP_CONFIG`
+   de su `js/ui.js` (líneas 28–56): 5 propiedades + 6 determinante/inversa +
+   3 sistemas + 5 entre matrices + 2 especiales + 6 autovalores = 27.
+2. **`docs/API.md` contradice la enmienda de ADR-007 §3.3**: su tabla de
+   vocabulario sigue con 13 tipos de paso, incluidos los tres que la enmienda
+   sacó. Anotado como **D17**, zona del Chat 2. Se implementó contra los 10 del
+   ADR, que es la fuente.
+
+**Arquitectura.** Cuatro decisiones:
+
+1. *Existe un modelo de presentación intermedio.* Una operación no devuelve
+   HTML ni sabe qué es una celda: devuelve `{title, blocks, steps, notes}`,
+   donde cada `block` es una primitiva de vista (`matrix`, `scalar`, `vector`,
+   `pairs`, `text`, `flags`). El renderizador conoce seis tipos de bloque y
+   ninguna operación. La alternativa —que el renderizador supiera qué
+   devuelve cada función del motor— es un `switch` de 27 ramas, el archivo
+   todoterreno que prohíbe `ENGINEERING_GUIDE.md` §3, y obligaría a tocar la
+   vista cada vez que se agrega una operación.
+2. *El panel de procedimiento distingue tres estados, no dos.* Hay pasos;
+   `steps: []`, que es "el motor todavía no escribió el desarrollo" (Paso
+   2c-2); y `steps === null`, que la interfaz usa para las operaciones fuera
+   del contrato de ADR-007 §3.4. Decirle "no hay desarrollo" a las tres sería
+   mentirle al usuario sobre si conviene volver más adelante: en un caso el
+   desarrollo va a aparecer y en el otro no.
+3. *`solveSystem` se lee con `outcome.classification ?? outcome.type`.* El
+   Paso 2c-2 renombra ese discriminante y corre en paralelo a esta sesión; con
+   las dos lecturas, la calculadora anda con el motor de hoy y con el de
+   después, sin depender del orden en que se cierren las sesiones. Cuando el
+   2c-2 esté cerrado, se borra el `??` — está marcado con un comentario que lo
+   dice.
+4. *Los errores de carga de datos tienen su propia clase, `InputError`.* No se
+   reutilizó `MathError`: el motor ni se enteró, porque la operación nunca
+   llegó a invocarse, y colgarle un error que no cometió confunde cualquier
+   diagnóstico posterior. La distinción es visible para el usuario — un dato
+   mal cargado se le muestra como algo que puede arreglar; cualquier otro
+   `Error` que llegue hasta ahí se le muestra como defecto de la calculadora,
+   con el pedido de que lo reporte.
+
+**Compatibilidad.** No se tocó `shared/math/`, `tests/`, `css/`, `assets/`,
+`docs/API.md`, `docs/Algorithms.md`, `docs/adr/`, `docs/governance/` ni
+`legacy/`. `js/` sigue vacío: el dashboard es el Paso 4. La API pública no
+cambió y no se pidió que cambiara. Fuera de `modules/algebra/`, el único
+archivo modificado es `index.html` de la raíz —zona del Chat 3—: enlaza la
+calculadora y corrige la lista de estado, que seguía diciendo que las pruebas
+estaban pendientes con el Paso 1 cerrado hace días. Sigue siendo provisorio.
+
+**Verificación.** Servido por HTTP sobre Node v22.22.2, el mismo del motor, y
+ejecutado en Chromium — no leído:
+
+- **Las 27 operaciones se ejecutaron desde la interfaz**, una por una, sobre
+  `A = [[4,7,2],[2,6,1],[3,1,5]]`. Las 27 devuelven resultado; ninguna lanza;
+  no hay un solo error de consola. El único 404 es `css/algebra.css`, que es
+  el Paso 3b.
+- **La regla de ADR-007 §3.2 se verificó rompiéndola a propósito**, que es la
+  única forma de saber si se cumple: se volvió a renderizar el procedimiento
+  de `determinantByGauss` con los pasos reducidos a `{type, text}`, sin
+  `snapshot` ni `detail`. Resultado: los 5 pasos, los 5 textos, 0 snapshots,
+  y el panel entero legible. Si esta prueba hubiera fallado, el renderizador
+  estaba mal escrito según la propia definición del ADR.
+- Un `type` fuera del vocabulario tampoco rompe: se muestra el paso con el
+  tipo crudo como rótulo. Preferimos un rótulo feo antes que ocultar el
+  desarrollo porque el motor incorporó un tipo que esta versión no conoce.
+- Verificación cruzada contra la definición, no contra la salida del motor:
+  `A·A⁻¹ = I`, `P·A = L·U`, `Q·R = A`, `L·Lᵀ = A`, `Σλ = tr(A)`, y el
+  determinante por Gauss contra el de cofactores y contra el 35 calculado a
+  mano. Todo con `approximatelyEqual` del motor: la primera versión de esta
+  prueba comparaba con `===` y marcaba en rojo un `35.00000000000001`
+  perfectamente correcto, que es exactamente lo que advierte
+  `CODING_STANDARDS.md` §10.
+- Caminos de error, todos desde la interfaz: inversa de una singular,
+  Cholesky sobre una no definida positiva, cofactores en 8×8 —avisado
+  **antes** de calcular, para no hacer esperar por una excepción previsible— y
+  una celda con texto, que se señala por posición `(1,1)` y marca la celda.
+- Historial: sobrevive a la recarga, y reabrir una entrada **vuelve a
+  calcular** en vez de mostrar lo guardado. Es deliberado: un historial que
+  guardara resultados mostraría, después de una corrección como H-03, valores
+  viejos e incorrectos sin ninguna señal.
+- Pegado: Excel (tabulaciones), MATLAB (`[1 2; 3 4]`) y CSV. La coma separa
+  celdas y no puede ser separador decimal al pegar; escribiendo a mano en una
+  celda sí se acepta, porque ahí no hay ambigüedad.
+- Contra `AI_RULES.md` §10: el archivo más largo es `app.js` con 469 líneas
+  —la primera versión dio 550 y se dividió en `view/layout-view.js` y
+  `view/history-view.js` en vez de justificar el exceso— y la función más
+  larga tiene 39 líneas efectivas. Sin `var`, sin globales, sin `innerHTML`,
+  sin comparación de flotantes con `==`, y **ningún import a un archivo
+  interno del motor**: los 8 archivos que importan del motor lo hacen desde
+  `shared/math/index.js`, verificado por búsqueda.
+
+**Próximos pasos.** El Paso 3b, los estilos (Chat 4): la calculadora funciona
+pero se ve sin formato, y el contrato de clases está al principio de
+`modules/algebra/index.html`. Después, el Paso 4 (dashboard, routing, historial
+global y favoritos), donde conviene revisar si el historial de esta calculadora
+se generaliza o queda por módulo — hoy tiene su propia clave de
+`localStorage`. Dos cosas que este chat deja anotadas y no hizo por estar fuera
+de su zona: **D17**, la tabla de vocabulario de `API.md`; y **D18**, si los
+métodos de `Matrix` deberían entrar al contrato de `steps`, que son 12 de las
+27 operaciones sin desarrollo posible. Y una sugerencia para el Chat 5, que es
+suya y no mía: hoy no hay ninguna prueba sobre `modules/`, así que el
+renderizador de pasos —lo único de la interfaz que implementa una regla de un
+ADR— no tiene red.
+
+---
 
 ### 2026-09-13 — Contrato de `steps`: la forma (Paso 2c-1) · Chat 2
 
