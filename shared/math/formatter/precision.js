@@ -1,98 +1,75 @@
-import { DEFAULT_DECIMALS, DEFAULT_TOLERANCE } from "../utils/constants.js";
+/**
+ * formatter/precision.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: precisión numérica en punto flotante — comparar
+ * con tolerancia y redondear. No decide CÓMO se muestra un número en
+ * pantalla (eso es formatter/format.js); solo resuelve el problema de
+ * "¿son estos dos números iguales, para fines prácticos?" y "¿cuál es la
+ * versión limpia de este número?".
+ * ---------------------------------------------------------------------------
+ */
+
+import { assertFiniteNumber, assertNonNegative, assertInteger } from '../validation/numbers.js';
+import { DEFAULT_TOLERANCE, DEFAULT_DISPLAY_DECIMALS } from '../utils/constants.js';
 
 /**
- * Compares two numbers with a configurable tolerance.
- *
- * @param {number} a First number.
- * @param {number} b Second number.
- * @param {number} [tolerance=DEFAULT_TOLERANCE] Numeric tolerance.
- * @returns {boolean} True when both values are approximately equal.
- *
+ * Compara dos números con una tolerancia absoluta (apta para la mayoría
+ * de los cálculos de esta librería, donde los valores no suelen ser
+ * extremadamente grandes ni extremadamente pequeños a la vez).
+ * @param {number} a
+ * @param {number} b
+ * @param {number} [tolerance=DEFAULT_TOLERANCE]
+ * @returns {boolean}
  * @example
- * approximatelyEqual(0.1 + 0.2, 0.3);
+ * approximatelyEqual(0.1 + 0.2, 0.3); // true
  */
 export function approximatelyEqual(a, b, tolerance = DEFAULT_TOLERANCE) {
+  assertFiniteNumber(a, 'a');
+  assertFiniteNumber(b, 'b');
+  assertNonNegative(tolerance, 'tolerance');
   return Math.abs(a - b) <= tolerance;
 }
 
 /**
- * Tests whether a value is numerically close to zero.
- *
- * @param {number} value Value to inspect.
- * @param {number} [tolerance=DEFAULT_TOLERANCE] Numeric tolerance.
- * @returns {boolean} True when the absolute value is small enough.
- *
+ * @param {number} value
+ * @param {number} [tolerance=DEFAULT_TOLERANCE]
+ * @returns {boolean} true si value está a menos de `tolerance` de 0
  * @example
- * isNearlyZero(1e-12);
+ * isApproximatelyZero(1e-15); // true
  */
-export function isNearlyZero(value, tolerance = DEFAULT_TOLERANCE) {
-  return Math.abs(value) <= tolerance;
+export function isApproximatelyZero(value, tolerance = DEFAULT_TOLERANCE) {
+  return approximatelyEqual(value, 0, tolerance);
 }
 
 /**
- * Rounds a number to a fixed amount of decimal places.
- *
- * @param {number} value Number to round.
- * @param {number} [decimals=DEFAULT_DECIMALS] Decimal places.
- * @returns {number} Rounded number.
- *
+ * Redondea value a la cantidad de decimales indicada.
+ * @param {number} value
+ * @param {number} [decimals=DEFAULT_DISPLAY_DECIMALS]
+ * @returns {number}
  * @example
- * roundTo(1.23456, 2); // 1.23
+ * roundTo(3.14159, 2); // 3.14
  */
-export function roundTo(value, decimals = DEFAULT_DECIMALS) {
-  const factor = 10 ** decimals;
-  return Math.round((value + Number.EPSILON) * factor) / factor;
+export function roundTo(value, decimals = DEFAULT_DISPLAY_DECIMALS) {
+  assertFiniteNumber(value, 'value');
+  assertInteger(decimals, 'decimals');
+  const factor = Math.pow(10, decimals);
+  return Math.round(value * factor) / factor;
 }
 
 /**
- * Converts tiny floating point noise to exact zero and rounds the rest.
- *
- * @param {number} value Number to clean.
- * @param {number} [decimals=DEFAULT_DECIMALS] Decimal places.
- * @param {number} [tolerance=DEFAULT_TOLERANCE] Zero tolerance.
- * @returns {number} Clean number.
- *
+ * "Limpia" un valor: si está a menos de `tolerance` de 0, devuelve 0
+ * exacto; si no, lo redondea a `decimals`. Útil después de eliminación de
+ * Gauss, donde deberían aparecer ceros pero quedan residuos de punto
+ * flotante como 1e-16.
+ * @param {number} value
+ * @param {number} [tolerance=DEFAULT_TOLERANCE]
+ * @param {number} [decimals=DEFAULT_DISPLAY_DECIMALS]
+ * @returns {number}
  * @example
- * cleanNumber(1e-12); // 0
+ * clean(-1.2e-15, 1e-10, 4); // 0
+ * clean(2.00004, 1e-10, 4); // 2.0
  */
-export function cleanNumber(value, decimals = DEFAULT_DECIMALS, tolerance = DEFAULT_TOLERANCE) {
-  if (isNearlyZero(value, tolerance)) return 0;
+export function clean(value, tolerance = DEFAULT_TOLERANCE, decimals = DEFAULT_DISPLAY_DECIMALS) {
+  if (isApproximatelyZero(value, tolerance)) return 0;
   return roundTo(value, decimals);
 }
-
-/**
- * Rounds every value in a matrix.
- *
- * @param {number[][]} matrix Matrix data.
- * @param {number} [decimals=DEFAULT_DECIMALS] Decimal places.
- * @returns {number[][]} Rounded matrix.
- *
- * @example
- * roundMatrix([[1 / 3]], 4); // [[0.3333]]
- */
-export function roundMatrix(matrix, decimals = DEFAULT_DECIMALS) {
-  return matrix.map((row) => row.map((value) => roundTo(value, decimals)));
-}
-
-/**
- * Formats a number in scientific notation.
- *
- * @param {number} value Number to format.
- * @param {number} [decimals=6] Decimal places.
- * @returns {string} Scientific notation.
- *
- * @example
- * scientificNotation(12345, 2); // "1.23e+4"
- */
-export function scientificNotation(value, decimals = 6) {
-  return Number(value).toExponential(decimals);
-}
-
-export default Object.freeze({
-  approximatelyEqual,
-  isNearlyZero,
-  roundTo,
-  cleanNumber,
-  roundMatrix,
-  scientificNotation,
-});

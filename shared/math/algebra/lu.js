@@ -1,128 +1,58 @@
-import { SingularMatrixError } from "../errors/SingularMatrixError.js";
-import { cleanNumber, isNearlyZero } from "../formatter/precision.js";
-import { DEFAULT_TOLERANCE } from "../utils/constants.js";
-import { validateLinearSystem, validateSquareMatrix } from "../validation/matrix.js";
-import { cloneMatrix, identity, zeros } from "./matrix.js";
+/**
+ * algebra/lu.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: descomposición LU con pivoteo parcial (P·A = L·U).
+ * ---------------------------------------------------------------------------
+ */
+
+import { Matrix } from './matrix.js';
+import { assertSquareMatrix } from '../validation/matrix.js';
+import { SingularMatrixError } from '../errors/SingularMatrixError.js';
+import { DEFAULT_TOLERANCE } from '../utils/constants.js';
 
 /**
- * Computes an LU decomposition with partial pivoting.
- * The result satisfies P * A = L * U.
- *
- * @param {number[][]} matrix Square matrix.
- * @param {{tolerance?:number}} [options] Numeric options.
- * @returns {{L:number[][], U:number[][], P:number[][], swaps:number}}
- *
+ * Factorización LU con pivoteo parcial: P·A = L·U, con L triangular
+ * inferior (diagonal de 1s), U triangular superior y P matriz de
+ * permutación.
+ * @param {Matrix} matrix
+ * @param {number} [tolerance=DEFAULT_TOLERANCE]
+ * @returns {{ L: Matrix, U: Matrix, P: Matrix, steps: Array<Object> }}
+ * @throws {DimensionError} si la matriz no es cuadrada
+ * @throws {SingularMatrixError} si la matriz es singular
  * @example
- * const { L, U, P } = luDecomposition([[2, 1], [4, 3]]);
+ * const { L, U, P } = luDecomposition(new Matrix([[4,3],[6,3]]));
  */
-export function luDecomposition(matrix, options = {}) {
-  const { tolerance = DEFAULT_TOLERANCE } = options;
-  validateSquareMatrix(matrix);
-  const n = matrix.length;
-  const U = cloneMatrix(matrix);
-  const L = identity(n);
-  const P = identity(n);
-  let swaps = 0;
+export function luDecomposition(matrix, tolerance = DEFAULT_TOLERANCE) {
+  assertSquareMatrix(matrix, 'matrix');
+  const n = matrix.rows;
+  const U = matrix.clone();
+  const L = Matrix.identity(n);
+  const perm = Array.from({ length: n }, (_, i) => i);
+  const steps = [];
 
-  for (let pivot = 0; pivot < n; pivot++) {
-    let pivotRow = pivot;
-    for (let row = pivot + 1; row < n; row++) {
-      if (Math.abs(U[row][pivot]) > Math.abs(U[pivotRow][pivot])) {
-        pivotRow = row;
-      }
+  for (let col = 0; col < n; col++) {
+    let maxRow = col;
+    for (let r = col + 1; r < n; r++) {
+      if (Math.abs(U.data[r][col]) > Math.abs(U.data[maxRow][col])) maxRow = r;
     }
-
-    if (isNearlyZero(U[pivotRow][pivot], tolerance)) {
-      throw new SingularMatrixError("LU decomposition failed because matrix is singular", {
-        pivot,
-      });
+    if (Math.abs(U.data[maxRow][col]) < tolerance) {
+      throw new SingularMatrixError(`La matriz es singular: no se encontró pivote no nulo en la columna ${col + 1}.`, { column: col + 1 });
     }
-
-    if (pivotRow !== pivot) {
-      [U[pivot], U[pivotRow]] = [U[pivotRow], U[pivot]];
-      [P[pivot], P[pivotRow]] = [P[pivotRow], P[pivot]];
-      for (let col = 0; col < pivot; col++) {
-        [L[pivot][col], L[pivotRow][col]] = [L[pivotRow][col], L[pivot][col]];
-      }
-      swaps++;
+    if (maxRow !== col) {
+      [U.data[col], U.data[maxRow]] = [U.data[maxRow], U.data[col]];
+      [perm[col], perm[maxRow]] = [perm[maxRow], perm[col]];
+      for (let c = 0; c < col; c++) [L.data[col][c], L.data[maxRow][c]] = [L.data[maxRow][c], L.data[col][c]];
+      steps.push({ type: 'swap', text: `Intercambio F${col + 1} ↔ F${maxRow + 1} (pivoteo parcial).` });
     }
-
-    for (let row = pivot + 1; row < n; row++) {
-      const factor = U[row][pivot] / U[pivot][pivot];
-      L[row][pivot] = cleanNumber(factor);
-      U[row][pivot] = 0;
-      for (let col = pivot + 1; col < n; col++) {
-        U[row][col] = cleanNumber(U[row][col] - factor * U[pivot][col]);
-      }
+    for (let r = col + 1; r < n; r++) {
+      const factor = U.data[r][col] / U.data[col][col];
+      L.data[r][col] = factor;
+      for (let c = col; c < n; c++) U.data[r][c] -= factor * U.data[col][c];
+      steps.push({ type: 'elim', text: `F${r + 1} → F${r + 1} − (${factor.toFixed(4)})·F${col + 1}` });
     }
   }
 
-  return { L, U, P, swaps };
+  const P = Matrix.zeros(n, n);
+  for (let i = 0; i < n; i++) P.data[i][perm[i]] = 1;
+  return { L, U, P, steps };
 }
-
-/**
- * Solves Ax = b using LU decomposition.
- *
- * @param {number[][]} matrixA Square coefficient matrix.
- * @param {number[]} vectorB Independent terms.
- * @param {{tolerance?:number}} [options] Numeric options.
- * @returns {number[]} Solution vector.
- *
- * @example
- * solveLU([[2, 1], [1, 3]], [1, 2]);
- */
-export function solveLU(matrixA, vectorB, options = {}) {
-  validateLinearSystem(matrixA, vectorB);
-  const { L, U, P } = luDecomposition(matrixA, options);
-  const n = matrixA.length;
-  const pb = new Array(n).fill(0);
-
-  for (let row = 0; row < n; row++) {
-    for (let col = 0; col < n; col++) {
-      pb[row] += P[row][col] * vectorB[col];
-    }
-  }
-
-  const y = new Array(n).fill(0);
-  for (let row = 0; row < n; row++) {
-    let sum = pb[row];
-    for (let col = 0; col < row; col++) {
-      sum -= L[row][col] * y[col];
-    }
-    y[row] = cleanNumber(sum / L[row][row]);
-  }
-
-  const x = new Array(n).fill(0);
-  for (let row = n - 1; row >= 0; row--) {
-    let sum = y[row];
-    for (let col = row + 1; col < n; col++) {
-      sum -= U[row][col] * x[col];
-    }
-    x[row] = cleanNumber(sum / U[row][row]);
-  }
-  return x;
-}
-
-/**
- * Computes the determinant from an LU decomposition.
- *
- * @param {{U:number[][], swaps:number}} decomposition LU decomposition result.
- * @returns {number} Determinant.
- *
- * @example
- * determinantFromLU(luDecomposition([[1, 2], [3, 4]]));
- */
-export function determinantFromLU(decomposition) {
-  const { U, swaps } = decomposition;
-  let value = swaps % 2 === 0 ? 1 : -1;
-  for (let index = 0; index < U.length; index++) {
-    value *= U[index][index];
-  }
-  return cleanNumber(value);
-}
-
-export default Object.freeze({
-  luDecomposition,
-  solveLU,
-  determinantFromLU,
-});

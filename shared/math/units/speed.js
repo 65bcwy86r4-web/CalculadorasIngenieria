@@ -1,36 +1,35 @@
-import { createLinearUnitConverter } from "../utils/helpers.js";
+/**
+ * units/speed.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: conversión entre unidades de velocidad. Unidad
+ * base interna: metros por segundo (m/s). Incluye el nudo (kt), relevante
+ * para aeronáutica.
+ * ---------------------------------------------------------------------------
+ */
+
+import { createUnitConverter } from '../utils/helpers.js';
+
+const definitions = {
+  'm/s': { toBase: (v) => v, fromBase: (v) => v },
+  'km/h': { toBase: (v) => v / 3.6, fromBase: (v) => v * 3.6 },
+  mph: { toBase: (v) => v * 0.44704, fromBase: (v) => v / 0.44704 },
+  kt: { toBase: (v) => v * 0.514444444, fromBase: (v) => v / 0.514444444 },
+  'ft/s': { toBase: (v) => v * 0.3048, fromBase: (v) => v / 0.3048 },
+};
+
+const converter = createUnitConverter(definitions, 'velocidad');
 
 /**
- * Speed conversion factors to meters per second.
- *
+ * @param {number} value
+ * @param {string} from - una de: 'm/s', 'km/h', 'mph', 'kt' (nudos), 'ft/s'
+ * @param {string} to
+ * @returns {number}
+ * @throws {MathError} code 'UNKNOWN_UNIT'
  * @example
- * import { convert } from "./shared/math/units/speed.js";
- * convert(36, "km/h", "m/s"); // 10
+ * convert(100, 'km/h', 'm/s'); // 27.777...
+ * convert(120, 'kt', 'km/h'); // 222.24
  */
-export const speedUnits = Object.freeze({
-  "m/s": 1,
-  "km/h": 1000 / 3600,
-  "cm/s": 0.01,
-  "ft/s": 0.3048,
-  mph: 0.44704,
-  kt: 0.514444444444,
-  knot: 0.514444444444,
-});
+export const convert = converter.convert;
 
-/**
- * Converts speed values.
- *
- * @param {number} value Speed value.
- * @param {string} fromUnit Source unit.
- * @param {string} toUnit Target unit.
- * @returns {number} Converted speed.
- *
- * @example
- * convert(36, "km/h", "m/s"); // 10
- */
-export const convert = createLinearUnitConverter(speedUnits, "speed");
-
-export default Object.freeze({
-  speedUnits,
-  convert,
-});
+/** @type {string[]} */
+export const units = converter.units;

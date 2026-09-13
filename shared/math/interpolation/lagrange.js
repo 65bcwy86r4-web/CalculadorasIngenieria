@@ -1,105 +1,71 @@
-import { InterpolationError } from "../errors/InterpolationError.js";
-import { validateFiniteNumber } from "../validation/numbers.js";
-import { normalizePoints } from "./linear.js";
+/**
+ * interpolation/lagrange.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: interpolación polinómica de Lagrange sobre un
+ * conjunto de n puntos con abscisas distintas.
+ *
+ * P(x) = Σᵢ yᵢ · Lᵢ(x),   Lᵢ(x) = Πⱼ≠ᵢ (x − xⱼ) / (xᵢ − xⱼ)
+ * ---------------------------------------------------------------------------
+ */
 
-function multiplyPolynomialByLinear(polynomial, root) {
-  const result = new Array(polynomial.length + 1).fill(0);
-  for (let index = 0; index < polynomial.length; index++) {
-    result[index] -= polynomial[index] * root;
-    result[index + 1] += polynomial[index];
+import { InterpolationError } from '../errors/InterpolationError.js';
+import { assertFiniteNumber } from '../validation/numbers.js';
+
+/**
+ * Evalúa el i-ésimo polinomio base de Lagrange Lᵢ(x) para un conjunto de
+ * abscisas dado. Se expone por separado porque es útil para mostrar el
+ * procedimiento paso a paso (peso de cada punto en el resultado final).
+ * @param {number[]} xs - abscisas, sin duplicados
+ * @param {number} i - índice del punto base (0-indexado)
+ * @param {number} x - punto a evaluar
+ * @returns {number}
+ * @example
+ * lagrangeBasis([0, 1, 2], 1, 1.5); // L_1(1.5)
+ */
+export function lagrangeBasis(xs, i, x) {
+  let result = 1;
+  for (let j = 0; j < xs.length; j++) {
+    if (j === i) continue;
+    result *= (x - xs[j]) / (xs[i] - xs[j]);
   }
   return result;
 }
 
 /**
- * Evaluates the Lagrange interpolation polynomial at x.
- *
- * @param {Array<{x:number,y:number}>|number[][]} points Interpolation points.
- * @param {number} x Evaluation coordinate.
- * @returns {number} Interpolated value.
- *
+ * Interpola el valor en x usando el polinomio de Lagrange que pasa por
+ * todos los puntos (xs, ys).
+ * @param {number[]} xs - abscisas, sin duplicados (n >= 2)
+ * @param {number[]} ys - ordenadas (mismo largo que xs)
+ * @param {number} x - punto a evaluar
+ * @returns {{ value: number, terms: Array<{ x: number, y: number, weight: number, contribution: number }> }}
+ * @throws {InterpolationError} si xs/ys tienen largos distintos, hay menos
+ *   de 2 puntos, o hay valores de x duplicados
  * @example
- * lagrangeInterpolate([[0, 1], [1, 3], [2, 7]], 1.5);
+ * lagrangeInterpolate([0, 1, 2], [1, 3, 7], 1.5).value; // 4.75
  */
-export function lagrangeInterpolate(points, x) {
-  const sorted = normalizePoints(points);
-  validateFiniteNumber(x, "x");
-  let result = 0;
+export function lagrangeInterpolate(xs, ys, x) {
+  if (!Array.isArray(xs) || !Array.isArray(ys) || xs.length !== ys.length) {
+    throw new InterpolationError('xs e ys deben ser arreglos del mismo largo.', { lengthXs: xs?.length, lengthYs: ys?.length });
+  }
+  if (xs.length < 2) {
+    throw new InterpolationError('Se necesitan al menos 2 puntos para interpolar con Lagrange.', { count: xs.length });
+  }
+  xs.forEach((xi, idx) => assertFiniteNumber(xi, `xs[${idx}]`));
+  ys.forEach((yi, idx) => assertFiniteNumber(yi, `ys[${idx}]`));
+  assertFiniteNumber(x, 'x');
 
-  for (let i = 0; i < sorted.length; i++) {
-    let term = sorted[i].y;
-    for (let j = 0; j < sorted.length; j++) {
-      if (i === j) continue;
-      const denominator = sorted[i].x - sorted[j].x;
-      if (denominator === 0) {
-        throw new InterpolationError("Duplicate x value in Lagrange interpolation", {
-          x: sorted[i].x,
-        });
+  for (let a = 0; a < xs.length; a++) {
+    for (let b = a + 1; b < xs.length; b++) {
+      if (xs[a] === xs[b]) {
+        throw new InterpolationError('Hay valores de x duplicados; Lagrange no está definido en ese caso (división por cero en los denominadores).', { duplicated: xs[a] });
       }
-      term *= (x - sorted[j].x) / denominator;
-    }
-    result += term;
-  }
-
-  return result;
-}
-
-/**
- * Builds Lagrange polynomial coefficients in ascending power order.
- * coefficients[0] + coefficients[1]x + coefficients[2]x^2 and higher powers.
- *
- * @param {Array<{x:number,y:number}>|number[][]} points Interpolation points.
- * @returns {number[]} Polynomial coefficients.
- *
- * @example
- * const coeffs = lagrangeCoefficients([[0, 1], [1, 3]]);
- */
-export function lagrangeCoefficients(points) {
-  const sorted = normalizePoints(points);
-  const coefficients = new Array(sorted.length).fill(0);
-
-  for (let i = 0; i < sorted.length; i++) {
-    let basis = [1];
-    let denominator = 1;
-
-    for (let j = 0; j < sorted.length; j++) {
-      if (i === j) continue;
-      basis = multiplyPolynomialByLinear(basis, sorted[j].x);
-      denominator *= sorted[i].x - sorted[j].x;
-    }
-
-    const scale = sorted[i].y / denominator;
-    for (let degree = 0; degree < basis.length; degree++) {
-      coefficients[degree] += basis[degree] * scale;
     }
   }
 
-  return coefficients;
+  const terms = xs.map((xi, i) => {
+    const weight = lagrangeBasis(xs, i, x);
+    return { x: xi, y: ys[i], weight, contribution: weight * ys[i] };
+  });
+  const value = terms.reduce((sum, t) => sum + t.contribution, 0);
+  return { value, terms };
 }
-
-/**
- * Creates an evaluator function for a Lagrange polynomial.
- *
- * @param {Array<{x:number,y:number}>|number[][]} points Interpolation points.
- * @returns {{coefficients:number[], evaluate:(x:number)=>number}} Polynomial evaluator.
- *
- * @example
- * const polynomial = lagrangePolynomial([[0, 1], [1, 3]]);
- * polynomial.evaluate(0.5);
- */
-export function lagrangePolynomial(points) {
-  const coefficients = lagrangeCoefficients(points);
-  return {
-    coefficients,
-    evaluate(x) {
-      validateFiniteNumber(x, "x");
-      return coefficients.reduceRight((sum, coefficient) => sum * x + coefficient, 0);
-    },
-  };
-}
-
-export default Object.freeze({
-  lagrangeInterpolate,
-  lagrangeCoefficients,
-  lagrangePolynomial,
-});

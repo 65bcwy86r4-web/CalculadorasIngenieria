@@ -1,120 +1,80 @@
-import { SingularMatrixError } from "../errors/SingularMatrixError.js";
-import { cleanNumber, isNearlyZero } from "../formatter/precision.js";
-import { DEFAULT_TOLERANCE } from "../utils/constants.js";
-import { cloneMatrix, minor } from "./matrix.js";
-import { validateSquareMatrix } from "../validation/matrix.js";
+/**
+ * algebra/determinant.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: calcular el determinante de una matriz cuadrada.
+ * Método principal: triangulación de Gauss (O(n³), reutiliza gauss.js).
+ * Método secundario: expansión por cofactores (Laplace), ofrecido solo
+ * como recurso teórico/didáctico para matrices pequeñas, ya que su costo
+ * es O(n!) y se vuelve impracticable más allá de 7×7.
+ * ---------------------------------------------------------------------------
+ */
+
+import { rowEchelon } from './gauss.js';
+import { assertSquareMatrix } from '../validation/matrix.js';
+import { MathError } from '../errors/MathError.js';
+import { DEFAULT_TOLERANCE } from '../utils/constants.js';
 
 /**
- * Computes a determinant using Gaussian elimination with partial pivoting.
- *
- * @param {number[][]} matrix Square matrix.
- * @param {{tolerance?:number}} [options] Numeric options.
- * @returns {number} Determinant.
- *
+ * Determinante mediante triangulación de Gauss:
+ * det(A) = (-1)^(cant. de intercambios) · producto de los pivotes.
+ * @param {Matrix} matrix
+ * @param {number} [tolerance=DEFAULT_TOLERANCE]
+ * @returns {{ value: number, steps: Array<Object>, swapCount: number }}
+ * @throws {DimensionError} si la matriz no es cuadrada (vía assertSquareMatrix)
  * @example
- * determinant([[1, 2], [3, 4]]); // -2
+ * determinantByGauss(new Matrix([[2,1],[1,3]])).value; // 5
  */
-export function determinant(matrix, options = {}) {
-  return determinantByGaussianElimination(matrix, options);
+export function determinantByGauss(matrix, tolerance = DEFAULT_TOLERANCE) {
+  assertSquareMatrix(matrix, 'matrix');
+  const n = matrix.rows;
+  if (n === 1) {
+    return { value: matrix.data[0][0], steps: [{ type: 'info', text: 'Matriz 1x1: el determinante es el único elemento.' }], swapCount: 0 };
+  }
+  const { result, steps, swapCount, pivots } = rowEchelon(matrix, tolerance);
+  if (pivots.length < n) {
+    steps.push({ type: 'info', text: 'Se obtuvo una columna sin pivote (fila de ceros): det(A) = 0.' });
+    return { value: 0, steps, swapCount };
+  }
+  let product = 1;
+  for (let i = 0; i < n; i++) product *= result.data[i][i];
+  const sign = swapCount % 2 === 0 ? 1 : -1;
+  const value = sign * product;
+  steps.push({ type: 'final', text: `det(A) = ${sign === -1 ? '(-1)·' : ''}producto de la diagonal = ${value}` + (swapCount > 0 ? ` (${swapCount} intercambio(s) de fila)` : '') });
+  return { value, steps, swapCount };
 }
 
 /**
- * Computes a determinant in O(n^3) using triangularization.
- *
- * @param {number[][]} matrix Square matrix.
- * @param {{tolerance?:number}} [options] Numeric options.
- * @returns {number} Determinant.
- *
+ * Expansión por cofactores (recursiva), solo con fines teóricos/didácticos.
+ * Limitada a n <= 7 por su complejidad O(n!); para matrices más grandes
+ * usar determinantByGauss.
+ * @param {Matrix} matrix
+ * @returns {number}
+ * @throws {DimensionError} si no es cuadrada
+ * @throws {MathError} si n > 7 (code 'TOO_LARGE_FOR_COFACTORS')
  * @example
- * determinantByGaussianElimination([[2, 0], [0, 3]]); // 6
- */
-export function determinantByGaussianElimination(matrix, options = {}) {
-  const { tolerance = DEFAULT_TOLERANCE } = options;
-  validateSquareMatrix(matrix);
-  const n = matrix.length;
-  const working = cloneMatrix(matrix);
-  let sign = 1;
-
-  for (let pivot = 0; pivot < n; pivot++) {
-    let pivotRow = pivot;
-    for (let row = pivot + 1; row < n; row++) {
-      if (Math.abs(working[row][pivot]) > Math.abs(working[pivotRow][pivot])) {
-        pivotRow = row;
-      }
-    }
-
-    if (isNearlyZero(working[pivotRow][pivot], tolerance)) {
-      return 0;
-    }
-
-    if (pivotRow !== pivot) {
-      const temp = working[pivot];
-      working[pivot] = working[pivotRow];
-      working[pivotRow] = temp;
-      sign *= -1;
-    }
-
-    for (let row = pivot + 1; row < n; row++) {
-      const factor = working[row][pivot] / working[pivot][pivot];
-      working[row][pivot] = 0;
-      for (let col = pivot + 1; col < n; col++) {
-        working[row][col] -= factor * working[pivot][col];
-      }
-    }
-  }
-
-  let value = sign;
-  for (let index = 0; index < n; index++) {
-    value *= working[index][index];
-  }
-  return cleanNumber(value);
-}
-
-/**
- * Computes a determinant by recursive cofactor expansion.
- * This is useful for didactic output and small matrices only.
- *
- * @param {number[][]} matrix Square matrix.
- * @returns {number} Determinant.
- *
- * @example
- * determinantByCofactors([[1, 2], [3, 4]]); // -2
+ * determinantByCofactors(new Matrix([[1,2],[3,4]])); // -2
  */
 export function determinantByCofactors(matrix) {
-  validateSquareMatrix(matrix);
-  const n = matrix.length;
-  if (n === 1) return matrix[0][0];
-  if (n === 2) return cleanNumber(matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0]);
-
-  let value = 0;
-  for (let col = 0; col < n; col++) {
-    const sign = col % 2 === 0 ? 1 : -1;
-    value += sign * matrix[0][col] * determinantByCofactors(minor(matrix, 0, col));
+  assertSquareMatrix(matrix, 'matrix');
+  if (matrix.rows > 7) {
+    throw new MathError(
+      'La expansión por cofactores solo está disponible como recurso teórico hasta 7x7 (su costo crece como n!). Usá determinantByGauss para matrices más grandes.',
+      'TOO_LARGE_FOR_COFACTORS',
+      { size: matrix.rows }
+    );
   }
-  return cleanNumber(value);
+  return expand(matrix);
 }
 
-/**
- * Asserts that a matrix has non-zero determinant.
- *
- * @param {number[][]} matrix Square matrix.
- * @param {number} [tolerance=DEFAULT_TOLERANCE] Numeric tolerance.
- * @returns {number} Determinant when non-zero.
- *
- * @example
- * assertNonSingular([[1, 0], [0, 1]]);
- */
-export function assertNonSingular(matrix, tolerance = DEFAULT_TOLERANCE) {
-  const value = determinant(matrix, { tolerance });
-  if (isNearlyZero(value, tolerance)) {
-    throw new SingularMatrixError("Matrix is singular", { determinant: value });
+/** @param {Matrix} matrix @returns {number} @private */
+function expand(matrix) {
+  const n = matrix.rows;
+  if (n === 1) return matrix.data[0][0];
+  if (n === 2) return matrix.data[0][0] * matrix.data[1][1] - matrix.data[0][1] * matrix.data[1][0];
+  let det = 0;
+  for (let j = 0; j < n; j++) {
+    const cofactorSign = j % 2 === 0 ? 1 : -1;
+    det += cofactorSign * matrix.data[0][j] * expand(matrix.minor(0, j));
   }
-  return value;
+  return det;
 }
-
-export default Object.freeze({
-  determinant,
-  determinantByGaussianElimination,
-  determinantByCofactors,
-  assertNonSingular,
-});

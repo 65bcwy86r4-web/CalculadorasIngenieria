@@ -1,21 +1,29 @@
-import { MathError } from "./MathError.js";
-
 /**
- * Error used by interpolation modules when input points are invalid.
- *
- * @example
- * import { InterpolationError } from "./shared/math/errors/InterpolationError.js";
- * throw new InterpolationError("At least two points are required");
+ * InterpolationError.js
+ * ---------------------------------------------------------------------------
+ * Error específico del módulo de interpolación: puntos duplicados en x,
+ * cantidad insuficiente de puntos para el método elegido, arreglos x/y de
+ * longitudes distintas, o evaluación fuera del dominio cuando se pide modo
+ * estricto (sin extrapolar).
+ * ---------------------------------------------------------------------------
  */
+
+import { MathError } from './MathError.js';
+
 export class InterpolationError extends MathError {
   /**
-   * @param {string} message Human-readable error message.
-   * @param {object} [details] Optional interpolation metadata.
+   * @param {string} message - Descripción del problema.
+   * @param {Object} [context={}] - Ej: { x: 12, domain: [0, 10] }.
+   *
+   * @example
+   * import { InterpolationError } from '../errors/InterpolationError.js';
+   * throw new InterpolationError(
+   *   'Hay valores de x duplicados; Lagrange no está definido en ese caso.',
+   *   { duplicated: 2.5 }
+   * );
    */
-  constructor(message, details = {}) {
-    super(message, details);
-    this.name = "InterpolationError";
+  constructor(message, context = {}) {
+    super(message, 'INTERPOLATION_ERROR', context);
+    this.name = 'InterpolationError';
   }
 }
-
-export default InterpolationError;

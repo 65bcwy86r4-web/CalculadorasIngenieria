@@ -1,279 +1,161 @@
-import { DimensionError } from "../errors/DimensionError.js";
-import { SingularMatrixError } from "../errors/SingularMatrixError.js";
-import { cleanNumber, isNearlyZero } from "../formatter/precision.js";
-import { DEFAULT_TOLERANCE } from "../utils/constants.js";
-import { cloneMatrix } from "./matrix.js";
-import {
-  getShape,
-  validateLinearSystem,
-  validateMatrix,
-  validateSquareMatrix,
-} from "../validation/matrix.js";
+/**
+ * algebra/gauss.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: eliminación de Gauss y Gauss-Jordan genéricas,
+ * con seguimiento de pasos (pivoteo, intercambios, combinaciones), y las
+ * operaciones que se derivan directamente de ellas: rango y resolución de
+ * sistemas lineales Ax = b.
+ *
+ * Este es el módulo más reutilizado del motor: determinant.js, inverse.js,
+ * eigen.js (autovectores) e interpolation/spline.js (sistema tridiagonal)
+ * lo consumen en vez de reimplementar su propia eliminación.
+ * ---------------------------------------------------------------------------
+ */
+
+import { Matrix } from './matrix.js';
+import { DimensionError } from '../errors/DimensionError.js';
+import { DEFAULT_TOLERANCE } from '../utils/constants.js';
 
 /**
- * Computes row echelon form using partial pivoting.
+ * Lleva una matriz a forma escalonada por filas usando pivoteo parcial
+ * (se elige, en cada columna, la fila con mayor valor absoluto desde la
+ * fila de pivote actual hacia abajo) para mayor estabilidad numérica.
  *
- * @param {number[][]} matrix Matrix data.
- * @param {{tolerance?:number}} [options] Numeric options.
- * @returns {{matrix:number[][], pivots:Array<{row:number,col:number,value:number}>, swapCount:number, rank:number}}
- *
+ * @param {Matrix} matrix
+ * @param {number} [tolerance=DEFAULT_TOLERANCE] - por debajo de este valor absoluto, un elemento se considera 0
+ * @returns {{ result: Matrix, steps: Array<Object>, swapCount: number, pivots: Array<{row:number, col:number, value:number}> }}
  * @example
- * rowEchelon([[1, 2], [2, 4]]).rank; // 1
+ * const { result, pivots } = rowEchelon(new Matrix([[2,1],[4,3]]));
  */
-export function rowEchelon(matrix, options = {}) {
-  const { tolerance = DEFAULT_TOLERANCE } = options;
-  validateMatrix(matrix);
-  const working = cloneMatrix(matrix);
-  const { rows, cols } = getShape(working);
-  const pivots = [];
+export function rowEchelon(matrix, tolerance = DEFAULT_TOLERANCE) {
+  const m = matrix.clone();
+  const steps = [];
   let swapCount = 0;
+  const pivots = [];
   let pivotRow = 0;
 
-  for (let col = 0; col < cols && pivotRow < rows; col++) {
+  for (let col = 0; col < m.cols && pivotRow < m.rows; col++) {
     let maxRow = pivotRow;
-    for (let row = pivotRow + 1; row < rows; row++) {
-      if (Math.abs(working[row][col]) > Math.abs(working[maxRow][col])) {
-        maxRow = row;
-      }
+    for (let r = pivotRow + 1; r < m.rows; r++) {
+      if (Math.abs(m.data[r][col]) > Math.abs(m.data[maxRow][col])) maxRow = r;
     }
-
-    if (isNearlyZero(working[maxRow][col], tolerance)) {
+    if (Math.abs(m.data[maxRow][col]) < tolerance) {
+      steps.push({ type: 'info', text: `Columna ${col + 1}: no hay pivote no nulo desde la fila ${pivotRow + 1}; se continúa con la siguiente columna.` });
       continue;
     }
-
     if (maxRow !== pivotRow) {
-      const temp = working[pivotRow];
-      working[pivotRow] = working[maxRow];
-      working[maxRow] = temp;
+      [m.data[pivotRow], m.data[maxRow]] = [m.data[maxRow], m.data[pivotRow]];
       swapCount++;
+      steps.push({ type: 'swap', text: `Intercambio F${pivotRow + 1} ↔ F${maxRow + 1} (pivoteo parcial).`, snapshot: m.toArray() });
     }
-
-    const pivotValue = working[pivotRow][col];
-    pivots.push({ row: pivotRow, col, value: pivotValue });
-
-    for (let row = pivotRow + 1; row < rows; row++) {
-      const factor = working[row][col] / pivotValue;
-      working[row][col] = 0;
-      for (let currentCol = col + 1; currentCol < cols; currentCol++) {
-        working[row][currentCol] -= factor * working[pivotRow][currentCol];
-        working[row][currentCol] = cleanNumber(working[row][currentCol]);
-      }
+    const pivotVal = m.data[pivotRow][col];
+    pivots.push({ row: pivotRow, col, value: pivotVal });
+    for (let r = pivotRow + 1; r < m.rows; r++) {
+      const factor = m.data[r][col] / pivotVal;
+      if (Math.abs(factor) < tolerance) continue;
+      for (let c = 0; c < m.cols; c++) m.data[r][c] -= factor * m.data[pivotRow][c];
+      steps.push({ type: 'elim', text: `F${r + 1} → F${r + 1} − (${factor.toFixed(4)})·F${pivotRow + 1}`, snapshot: m.toArray() });
     }
     pivotRow++;
   }
-
-  return { matrix: working, pivots, swapCount, rank: pivots.length };
+  return { result: m, steps, swapCount, pivots };
 }
 
 /**
- * Computes reduced row echelon form using Gauss-Jordan elimination.
- *
- * @param {number[][]} matrix Matrix data.
- * @param {{tolerance?:number}} [options] Numeric options.
- * @returns {{matrix:number[][], pivots:Array<{row:number,col:number,value:number}>, swapCount:number, rank:number}}
- *
+ * Forma escalonada reducida (Gauss-Jordan): además de triangular, normaliza
+ * cada pivote a 1 y elimina los elementos por encima de cada pivote.
+ * @param {Matrix} matrix
+ * @param {number} [tolerance=DEFAULT_TOLERANCE]
+ * @returns {{ result: Matrix, steps: Array<Object>, swapCount: number, pivots: Array<Object> }}
  * @example
- * reducedRowEchelon([[1, 2], [2, 4]]).matrix;
+ * reducedRowEchelon(new Matrix([[2,4],[1,1]]));
  */
-export function reducedRowEchelon(matrix, options = {}) {
-  const { tolerance = DEFAULT_TOLERANCE } = options;
-  const echelon = rowEchelon(matrix, { tolerance });
-  const working = echelon.matrix;
-  const cols = working[0].length;
+export function reducedRowEchelon(matrix, tolerance = DEFAULT_TOLERANCE) {
+  const first = rowEchelon(matrix, tolerance);
+  const m = first.result;
+  const steps = first.steps.slice();
 
-  for (let index = echelon.pivots.length - 1; index >= 0; index--) {
-    const { row, col } = echelon.pivots[index];
-    const pivotValue = working[row][col];
-    if (isNearlyZero(pivotValue, tolerance)) {
-      continue;
+  for (let p = first.pivots.length - 1; p >= 0; p--) {
+    const { row, col } = first.pivots[p];
+    const pivotVal = m.data[row][col];
+    if (Math.abs(pivotVal - 1) > tolerance) {
+      for (let c = 0; c < m.cols; c++) m.data[row][c] /= pivotVal;
+      steps.push({ type: 'scale', text: `F${row + 1} → F${row + 1} / (${pivotVal.toFixed(4)})`, snapshot: m.toArray() });
     }
-
-    for (let currentCol = col; currentCol < cols; currentCol++) {
-      working[row][currentCol] = cleanNumber(working[row][currentCol] / pivotValue);
-    }
-
-    for (let upperRow = 0; upperRow < row; upperRow++) {
-      const factor = working[upperRow][col];
-      if (isNearlyZero(factor, tolerance)) continue;
-      working[upperRow][col] = 0;
-      for (let currentCol = col + 1; currentCol < cols; currentCol++) {
-        working[upperRow][currentCol] -= factor * working[row][currentCol];
-        working[upperRow][currentCol] = cleanNumber(working[upperRow][currentCol]);
-      }
+    for (let r = 0; r < row; r++) {
+      const factor = m.data[r][col];
+      if (Math.abs(factor) < tolerance) continue;
+      for (let c = 0; c < m.cols; c++) m.data[r][c] -= factor * m.data[row][c];
+      steps.push({ type: 'elim', text: `F${r + 1} → F${r + 1} − (${factor.toFixed(4)})·F${row + 1}`, snapshot: m.toArray() });
     }
   }
-
-  return {
-    matrix: working,
-    pivots: echelon.pivots,
-    swapCount: echelon.swapCount,
-    rank: echelon.pivots.length,
-  };
+  return { result: m, steps, pivots: first.pivots, swapCount: first.swapCount };
 }
 
 /**
- * Computes matrix rank.
- *
- * @param {number[][]} matrix Matrix data.
- * @param {{tolerance?:number}} [options] Numeric options.
- * @returns {number} Matrix rank.
- *
+ * @param {Matrix} matrix
+ * @param {number} [tolerance=DEFAULT_TOLERANCE]
+ * @returns {{ rank: number, echelon: Matrix, steps: Array<Object> }}
  * @example
- * rank([[1, 2], [2, 4]]); // 1
+ * rank(new Matrix([[1,2],[2,4]])).rank; // 1
  */
-export function rank(matrix, options = {}) {
-  return rowEchelon(matrix, options).rank;
+export function rank(matrix, tolerance = DEFAULT_TOLERANCE) {
+  const { result, pivots, steps } = rowEchelon(matrix, tolerance);
+  return { rank: pivots.length, echelon: result, steps };
 }
 
 /**
- * Solves Ax = b using Gaussian elimination and back substitution.
+ * Resuelve Ax = b mediante Gauss-Jordan sobre la matriz aumentada [A|b].
+ * A diferencia de la mayoría de las funciones del motor, esta función NO
+ * lanza una excepción cuando el sistema no tiene solución única: un
+ * sistema incompatible o con infinitas soluciones es un resultado
+ * matemático válido, no un error de uso, así que se devuelve un objeto
+ * con `type` discriminado para que el llamador decida qué hacer.
+ * Sí se lanza DimensionError si A y b son incompatibles en tamaño, porque
+ * eso sí es un error de uso (los arreglos no representan el mismo sistema).
  *
- * @param {number[][]} matrixA Square coefficient matrix.
- * @param {number[]} vectorB Independent terms.
- * @param {{tolerance?:number}} [options] Numeric options.
- * @returns {number[]} Solution vector.
- *
+ * @param {Matrix} A - matriz de coeficientes (n×n o m×n)
+ * @param {number[]} b - vector de términos independientes (largo = A.rows)
+ * @param {number} [tolerance=DEFAULT_TOLERANCE]
+ * @returns {{ type: 'unique', solution: number[], steps: Array, rref: Matrix }
+ *         | { type: 'infinite', message: string, steps: Array, rref: Matrix }
+ *         | { type: 'incompatible', message: string, steps: Array }}
+ * @throws {DimensionError} si b.length !== A.rows
  * @example
- * gaussSolve([[2, 1], [1, 3]], [1, 2]);
+ * solveSystem(new Matrix([[2,1],[1,3]]), [8, 13]);
+ * // { type: 'unique', solution: [3.4, 3.2], ... } (aprox.)
  */
-export function gaussSolve(matrixA, vectorB, options = {}) {
-  const { tolerance = DEFAULT_TOLERANCE } = options;
-  validateSquareMatrix(matrixA, "A");
-  validateLinearSystem(matrixA, vectorB);
-  const n = matrixA.length;
-  const augmented = matrixA.map((row, index) => [...row, vectorB[index]]);
-
-  for (let pivot = 0; pivot < n; pivot++) {
-    let pivotRow = pivot;
-    for (let row = pivot + 1; row < n; row++) {
-      if (Math.abs(augmented[row][pivot]) > Math.abs(augmented[pivotRow][pivot])) {
-        pivotRow = row;
-      }
-    }
-    if (isNearlyZero(augmented[pivotRow][pivot], tolerance)) {
-      throw new SingularMatrixError("System matrix is singular or nearly singular", {
-        pivot,
-      });
-    }
-    if (pivotRow !== pivot) {
-      const temp = augmented[pivot];
-      augmented[pivot] = augmented[pivotRow];
-      augmented[pivotRow] = temp;
-    }
-    for (let row = pivot + 1; row < n; row++) {
-      const factor = augmented[row][pivot] / augmented[pivot][pivot];
-      augmented[row][pivot] = 0;
-      for (let col = pivot + 1; col <= n; col++) {
-        augmented[row][col] -= factor * augmented[pivot][col];
-      }
-    }
+export function solveSystem(A, b, tolerance = DEFAULT_TOLERANCE) {
+  if (!Array.isArray(b) || b.length !== A.rows) {
+    throw new DimensionError(`El vector "b" (largo ${Array.isArray(b) ? b.length : 'inválido'}) debe tener la misma cantidad de filas que A (${A.rows}).`, { rowsA: A.rows, lengthB: Array.isArray(b) ? b.length : null });
   }
+  const augmentedData = A.data.map((row, i) => row.concat([b[i]]));
+  const augmented = new Matrix(augmentedData);
 
-  const solution = new Array(n).fill(0);
-  for (let row = n - 1; row >= 0; row--) {
-    let sum = augmented[row][n];
-    for (let col = row + 1; col < n; col++) {
-      sum -= augmented[row][col] * solution[col];
-    }
-    solution[row] = cleanNumber(sum / augmented[row][row]);
-  }
-  return solution;
-}
+  const rrefResult = reducedRowEchelon(augmented, tolerance);
+  const rankA = rank(A, tolerance).rank;
+  const rankAug = rrefResult.pivots.length;
+  const n = A.cols;
 
-/**
- * Solves Ax = b with Gauss-Jordan elimination.
- *
- * @param {number[][]} matrixA Coefficient matrix.
- * @param {number[]} vectorB Independent terms.
- * @param {{tolerance?:number}} [options] Numeric options.
- * @returns {{type:"unique"|"infinite"|"none", solution?:number[], rref:number[][], rankA:number, rankAugmented:number}}
- *
- * @example
- * gaussJordanSolve([[1, 1], [1, -1]], [3, 1]).solution; // [2, 1]
- */
-export function gaussJordanSolve(matrixA, vectorB, options = {}) {
-  validateLinearSystem(matrixA, vectorB);
-  const { cols } = getShape(matrixA);
-  const augmented = matrixA.map((row, index) => [...row, vectorB[index]]);
-  const rref = reducedRowEchelon(augmented, options);
-  const rankA = rank(matrixA, options);
-  const rankAugmented = rref.rank;
-
-  if (rankA < rankAugmented) {
+  if (rankA < rankAug) {
     return {
-      type: "none",
-      rref: rref.matrix,
+      type: 'incompatible',
+      message: 'El sistema es incompatible (no tiene solución): el rango de A es menor que el rango de la matriz ampliada [A|b].',
+      steps: rrefResult.steps,
       rankA,
-      rankAugmented,
+      rankAug,
     };
   }
-
-  if (rankA < cols) {
+  if (rankA < n) {
     return {
-      type: "infinite",
-      rref: rref.matrix,
+      type: 'infinite',
+      message: `El sistema es compatible indeterminado: tiene infinitas soluciones (rango = ${rankA} < ${n} incógnitas).`,
+      steps: rrefResult.steps,
+      rref: rrefResult.result,
       rankA,
-      rankAugmented,
+      rankAug,
     };
   }
-
-  const solution = new Array(cols).fill(0);
-  for (const pivot of rref.pivots) {
-    if (pivot.col < cols) {
-      solution[pivot.col] = cleanNumber(rref.matrix[pivot.row][cols]);
-    }
-  }
-
-  return {
-    type: "unique",
-    solution,
-    rref: rref.matrix,
-    rankA,
-    rankAugmented,
-  };
+  const solution = rrefResult.result.data.map((row) => row[row.length - 1]);
+  return { type: 'unique', solution, steps: rrefResult.steps, rref: rrefResult.result, rankA, rankAug };
 }
-
-/**
- * Creates an augmented matrix [A | b].
- *
- * @param {number[][]} matrixA Coefficient matrix.
- * @param {number[]} vectorB Independent terms.
- * @returns {number[][]} Augmented matrix.
- *
- * @example
- * createAugmentedMatrix([[1, 2]], [3]); // [[1, 2, 3]]
- */
-export function createAugmentedMatrix(matrixA, vectorB) {
-  validateLinearSystem(matrixA, vectorB);
-  return matrixA.map((row, index) => [...row, vectorB[index]]);
-}
-
-/**
- * Validates that a linear system has a unique solution.
- *
- * @param {ReturnType<typeof gaussJordanSolve>} result Result from gaussJordanSolve.
- * @returns {number[]} Unique solution.
- *
- * @example
- * assertUniqueSolution(gaussJordanSolve([[1]], [2]));
- */
-export function assertUniqueSolution(result) {
-  if (result.type !== "unique") {
-    throw new DimensionError("Linear system does not have a unique solution", {
-      type: result.type,
-      rankA: result.rankA,
-      rankAugmented: result.rankAugmented,
-    });
-  }
-  return result.solution;
-}
-
-export default Object.freeze({
-  rowEchelon,
-  reducedRowEchelon,
-  rank,
-  gaussSolve,
-  gaussJordanSolve,
-  createAugmentedMatrix,
-  assertUniqueSolution,
-});

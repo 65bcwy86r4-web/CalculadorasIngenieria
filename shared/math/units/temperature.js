@@ -1,59 +1,40 @@
-import { MathError } from "../errors/MathError.js";
+/**
+ * units/temperature.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: conversión entre unidades de temperatura.
+ * Unidad base interna: kelvin (K).
+ *
+ * A diferencia de distancia/masa/presión/velocidad/energía, la
+ * temperatura no es una simple proporción: Celsius y Fahrenheit son
+ * escalas afines (tienen un desplazamiento además de un factor de
+ * escala). Gracias a que createUnitConverter (utils/helpers.js) recibe
+ * funciones toBase/fromBase en vez de un factor numérico, este caso se
+ * resuelve con el mismo mecanismo genérico, sin ninguna rama especial.
+ * ---------------------------------------------------------------------------
+ */
+
+import { createUnitConverter } from '../utils/helpers.js';
+
+const definitions = {
+  K: { toBase: (v) => v, fromBase: (v) => v },
+  C: { toBase: (v) => v + 273.15, fromBase: (v) => v - 273.15 },
+  F: { toBase: (v) => ((v - 32) * 5) / 9 + 273.15, fromBase: (v) => ((v - 273.15) * 9) / 5 + 32 },
+  R: { toBase: (v) => (v * 5) / 9, fromBase: (v) => (v * 9) / 5 },
+};
+
+const converter = createUnitConverter(definitions, 'temperatura');
 
 /**
- * Supported temperature units.
- *
+ * @param {number} value
+ * @param {string} from - una de: K (kelvin), C (celsius), F (fahrenheit), R (rankine)
+ * @param {string} to
+ * @returns {number}
+ * @throws {MathError} code 'UNKNOWN_UNIT'
  * @example
- * import { convert } from "./shared/math/units/temperature.js";
- * convert(32, "F", "C"); // 0
+ * convert(32, 'F', 'C'); // 0
+ * convert(0, 'C', 'K'); // 273.15
  */
-export const temperatureUnits = Object.freeze(["C", "F", "K", "R"]);
+export const convert = converter.convert;
 
-const toKelvin = Object.freeze({
-  C: (value) => value + 273.15,
-  F: (value) => ((value - 32) * 5) / 9 + 273.15,
-  K: (value) => value,
-  R: (value) => (value * 5) / 9,
-});
-
-const fromKelvin = Object.freeze({
-  C: (value) => value - 273.15,
-  F: (value) => ((value - 273.15) * 9) / 5 + 32,
-  K: (value) => value,
-  R: (value) => (value * 9) / 5,
-});
-
-/**
- * Converts temperature values across C, F, K, and R.
- *
- * @param {number} value Temperature value.
- * @param {"C"|"F"|"K"|"R"} fromUnit Source unit.
- * @param {"C"|"F"|"K"|"R"} toUnit Target unit.
- * @returns {number} Converted value.
- *
- * @example
- * convert(32, "F", "C"); // 0
- */
-export function convert(value, fromUnit, toUnit) {
-  if (!Number.isFinite(value)) {
-    throw new MathError("Temperature value must be a finite number", { value });
-  }
-  if (!toKelvin[fromUnit]) {
-    throw new MathError(`Unknown temperature unit: ${fromUnit}`, {
-      unit: fromUnit,
-      availableUnits: temperatureUnits,
-    });
-  }
-  if (!fromKelvin[toUnit]) {
-    throw new MathError(`Unknown temperature unit: ${toUnit}`, {
-      unit: toUnit,
-      availableUnits: temperatureUnits,
-    });
-  }
-  return fromKelvin[toUnit](toKelvin[fromUnit](value));
-}
-
-export default Object.freeze({
-  temperatureUnits,
-  convert,
-});
+/** @type {string[]} */
+export const units = converter.units;

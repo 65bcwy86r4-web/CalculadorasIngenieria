@@ -1,0 +1,24 @@
+# Sistema operativo
+Thumbs.db
+Desktop.ini
+.DS_Store
+desktop.ini
+
+# OneDrive
+*.tmp
+~$*
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node (solo si en el futuro se agrega tooling de desarrollo;
+# el proyecto en sí no tiene dependencias de runtime)
+node_modules/
+npm-debug.log*
+
+# Salidas de pruebas
+coverage/
+*.log

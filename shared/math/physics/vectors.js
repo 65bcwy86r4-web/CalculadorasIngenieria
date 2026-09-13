@@ -1,184 +1,200 @@
-import { DimensionError } from "../errors/DimensionError.js";
-import { MathError } from "../errors/MathError.js";
-import { cleanNumber, isNearlyZero } from "../formatter/precision.js";
-import { DEFAULT_TOLERANCE } from "../utils/constants.js";
-import { validateFiniteNumber } from "../validation/numbers.js";
-import { validateVector, validateVectorLength } from "../validation/matrix.js";
+/**
+ * physics/vectors.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: operaciones sobre vectores físicos (fuerzas,
+ * velocidades, desplazamientos), representados como arreglos planos de
+ * números (number[]). No usa la clase Matrix de algebra/ a propósito:
+ * un vector físico de 2 o 3 componentes no necesita la maquinaria de una
+ * matriz completa, y mantener este módulo independiente de algebra/
+ * evita acoplar la capa de física a la de álgebra para una operación tan
+ * elemental. (physics/tensors.js sí depende de algebra/, porque un
+ * tensor de rango 2 sí se beneficia de reutilizar Matrix y eigen.js).
+ * ---------------------------------------------------------------------------
+ */
 
-function validateSameLength(vectorA, vectorB) {
-  validateVector(vectorA, "vectorA");
-  validateVector(vectorB, "vectorB");
-  if (vectorA.length !== vectorB.length) {
-    throw new DimensionError("Vectors must have the same length", {
-      left: vectorA.length,
-      right: vectorB.length,
-    });
+import { assertVectorData, assertSameLength } from '../validation/matrix.js';
+import { assertFiniteNumber } from '../validation/numbers.js';
+import { DimensionError } from '../errors/DimensionError.js';
+
+/**
+ * @param {number[]} a
+ * @param {number[]} b
+ * @returns {number[]}
+ * @throws {DimensionError} si a y b tienen longitudes distintas
+ * @example
+ * add([1, 2], [3, 4]); // [4, 6]
+ */
+export function add(a, b) {
+  assertSameLength(a, b, 'a', 'b');
+  return a.map((v, i) => v + b[i]);
+}
+
+/**
+ * Suma (resultante) de una lista de vectores de igual longitud. Es la
+ * operación típica para componer varias fuerzas o velocidades en un
+ * único vector resultante.
+ * @param {number[][]} vectors - lista de al menos un vector
+ * @returns {number[]}
+ * @throws {DimensionError} si la lista está vacía o los vectores no tienen igual longitud
+ * @example
+ * sum([[1, 0], [0, 1], [2, 2]]); // [3, 3]
+ */
+export function sum(vectors) {
+  if (!Array.isArray(vectors) || vectors.length === 0) {
+    throw new DimensionError('sum requiere un arreglo no vacío de vectores.', { count: vectors?.length });
   }
+  vectors.forEach((v, i) => assertVectorData(v, `vectors[${i}]`));
+  const length = vectors[0].length;
+  vectors.forEach((v, i) => {
+    if (v.length !== length) throw new DimensionError(`Todos los vectores deben tener la misma longitud (vectors[${i}] tiene ${v.length}, se esperaba ${length}).`, { index: i, length: v.length, expected: length });
+  });
+  return vectors.reduce((acc, v) => acc.map((val, i) => val + v[i]));
 }
 
 /**
- * Adds two vectors.
- *
- * @param {number[]} vectorA First vector.
- * @param {number[]} vectorB Second vector.
- * @returns {number[]} Vector sum.
- *
+ * @param {number[]} a
+ * @param {number[]} b
+ * @returns {number[]}
+ * @throws {DimensionError}
  * @example
- * addVectors([1, 2], [3, 4]); // [4, 6]
+ * subtract([5, 5], [2, 1]); // [3, 4]
  */
-export function addVectors(vectorA, vectorB) {
-  validateSameLength(vectorA, vectorB);
-  return vectorA.map((value, index) => cleanNumber(value + vectorB[index]));
+export function subtract(a, b) {
+  assertSameLength(a, b, 'a', 'b');
+  return a.map((v, i) => v - b[i]);
 }
 
 /**
- * Subtracts two vectors.
- *
- * @param {number[]} vectorA First vector.
- * @param {number[]} vectorB Second vector.
- * @returns {number[]} Vector difference.
- *
+ * @param {number[]} v
+ * @param {number} k
+ * @returns {number[]}
  * @example
- * subtractVectors([3, 4], [1, 2]); // [2, 2]
+ * scale([1, 2, 3], 2); // [2, 4, 6]
  */
-export function subtractVectors(vectorA, vectorB) {
-  validateSameLength(vectorA, vectorB);
-  return vectorA.map((value, index) => cleanNumber(value - vectorB[index]));
+export function scale(v, k) {
+  assertVectorData(v, 'v');
+  assertFiniteNumber(k, 'k');
+  return v.map((val) => val * k);
 }
 
 /**
- * Scales a vector.
- *
- * @param {number[]} vector Vector data.
- * @param {number} scalar Scalar value.
- * @returns {number[]} Scaled vector.
- *
+ * @param {number[]} a
+ * @param {number[]} b
+ * @returns {number} producto escalar (interno)
+ * @throws {DimensionError}
  * @example
- * scaleVector([1, 2], 3); // [3, 6]
+ * dot([1, 2, 3], [4, 5, 6]); // 32
  */
-export function scaleVector(vector, scalar) {
-  validateVector(vector);
-  validateFiniteNumber(scalar, "scalar");
-  return vector.map((value) => cleanNumber(value * scalar));
+export function dot(a, b) {
+  assertSameLength(a, b, 'a', 'b');
+  return a.reduce((sum, v, i) => sum + v * b[i], 0);
 }
 
 /**
- * Computes the dot product.
- *
- * @param {number[]} vectorA First vector.
- * @param {number[]} vectorB Second vector.
- * @returns {number} Dot product.
- *
+ * Producto vectorial, definido únicamente en 3 dimensiones.
+ * @param {number[]} a - vector de longitud 3
+ * @param {number[]} b - vector de longitud 3
+ * @returns {number[]}
+ * @throws {DimensionError} si a o b no tienen longitud 3
  * @example
- * dotProduct([1, 2], [3, 4]); // 11
+ * cross([1, 0, 0], [0, 1, 0]); // [0, 0, 1]
  */
-export function dotProduct(vectorA, vectorB) {
-  validateSameLength(vectorA, vectorB);
-  return cleanNumber(vectorA.reduce((sum, value, index) => sum + value * vectorB[index], 0));
+export function cross(a, b) {
+  assertVectorData(a, 'a');
+  assertVectorData(b, 'b');
+  if (a.length !== 3 || b.length !== 3) {
+    throw new DimensionError('cross solo está definido para vectores de 3 componentes.', { lengthA: a.length, lengthB: b.length });
+  }
+  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 }
 
 /**
- * Computes the 3D cross product.
- *
- * @param {number[]} vectorA First 3D vector.
- * @param {number[]} vectorB Second 3D vector.
- * @returns {number[]} Cross product.
- *
- * @example
- * crossProduct([1, 0, 0], [0, 1, 0]); // [0, 0, 1]
- */
-export function crossProduct(vectorA, vectorB) {
-  validateVectorLength(vectorA, 3, "vectorA");
-  validateVectorLength(vectorB, 3, "vectorB");
-  return [
-    cleanNumber(vectorA[1] * vectorB[2] - vectorA[2] * vectorB[1]),
-    cleanNumber(vectorA[2] * vectorB[0] - vectorA[0] * vectorB[2]),
-    cleanNumber(vectorA[0] * vectorB[1] - vectorA[1] * vectorB[0]),
-  ];
-}
-
-/**
- * Computes vector magnitude.
- *
- * @param {number[]} vector Vector data.
- * @returns {number} Magnitude.
- *
+ * @param {number[]} v
+ * @returns {number} magnitud (norma euclídea) del vector
  * @example
  * magnitude([3, 4]); // 5
  */
-export function magnitude(vector) {
-  validateVector(vector);
-  return Math.sqrt(dotProduct(vector, vector));
+export function magnitude(v) {
+  assertVectorData(v, 'v');
+  return Math.sqrt(v.reduce((sum, x) => sum + x * x, 0));
 }
 
 /**
- * Normalizes a vector.
- *
- * @param {number[]} vector Vector data.
- * @param {number} [tolerance=DEFAULT_TOLERANCE] Zero tolerance.
- * @returns {number[]} Unit vector.
- *
+ * @param {number[]} v
+ * @returns {number[]} vector unitario en la misma dirección que v
+ * @throws {DimensionError} code implícito vía MathError si |v| ≈ 0
  * @example
  * normalize([3, 4]); // [0.6, 0.8]
  */
-export function normalize(vector, tolerance = DEFAULT_TOLERANCE) {
-  const length = magnitude(vector);
-  if (isNearlyZero(length, tolerance)) {
-    throw new MathError("Cannot normalize a zero vector");
+export function normalize(v) {
+  const mag = magnitude(v);
+  if (mag < 1e-14) {
+    throw new DimensionError('No se puede normalizar el vector nulo (magnitud ≈ 0).', { v });
   }
-  return scaleVector(vector, 1 / length);
+  return v.map((x) => x / mag);
 }
 
 /**
- * Computes the angle between two vectors in radians.
- *
- * @param {number[]} vectorA First vector.
- * @param {number[]} vectorB Second vector.
- * @param {number} [tolerance=DEFAULT_TOLERANCE] Zero tolerance.
- * @returns {number} Angle in radians.
- *
+ * Ángulo entre dos vectores.
+ * @param {number[]} a
+ * @param {number[]} b
+ * @param {Object} [options={}]
+ * @param {boolean} [options.inDegrees=false]
+ * @returns {number} ángulo en radianes (o grados si options.inDegrees)
  * @example
- * angleBetween([1, 0], [0, 1]); // Math.PI / 2
+ * angleBetween([1, 0], [0, 1], { inDegrees: true }); // 90
  */
-export function angleBetween(vectorA, vectorB, tolerance = DEFAULT_TOLERANCE) {
-  validateSameLength(vectorA, vectorB);
-  const lengthA = magnitude(vectorA);
-  const lengthB = magnitude(vectorB);
-  if (isNearlyZero(lengthA, tolerance) || isNearlyZero(lengthB, tolerance)) {
-    throw new MathError("Angle is undefined for zero vectors");
-  }
-  const cosine = Math.max(-1, Math.min(1, dotProduct(vectorA, vectorB) / (lengthA * lengthB)));
-  return Math.acos(cosine);
+export function angleBetween(a, b, options = {}) {
+  const { inDegrees = false } = options;
+  const cosTheta = dot(a, b) / (magnitude(a) * magnitude(b));
+  const clamped = Math.min(1, Math.max(-1, cosTheta));
+  const radians = Math.acos(clamped);
+  return inDegrees ? (radians * 180) / Math.PI : radians;
 }
 
 /**
- * Projects vectorA onto vectorB.
- *
- * @param {number[]} vectorA Vector to project.
- * @param {number[]} vectorB Target vector.
- * @param {number} [tolerance=DEFAULT_TOLERANCE] Zero tolerance.
- * @returns {number[]} Projection vector.
- *
+ * Proyección vectorial de a sobre b.
+ * @param {number[]} a
+ * @param {number[]} b
+ * @returns {number[]}
+ * @throws {DimensionError} si b es el vector nulo
  * @example
  * projection([2, 2], [1, 0]); // [2, 0]
  */
-export function projection(vectorA, vectorB, tolerance = DEFAULT_TOLERANCE) {
-  validateSameLength(vectorA, vectorB);
-  const denominator = dotProduct(vectorB, vectorB);
-  if (isNearlyZero(denominator, tolerance)) {
-    throw new MathError("Projection target cannot be a zero vector");
-  }
-  return scaleVector(vectorB, dotProduct(vectorA, vectorB) / denominator);
+export function projection(a, b) {
+  assertSameLength(a, b, 'a', 'b');
+  const bMagSq = dot(b, b);
+  if (bMagSq < 1e-28) throw new DimensionError('No se puede proyectar sobre el vector nulo.', { b });
+  const scalar = dot(a, b) / bMagSq;
+  return b.map((x) => x * scalar);
 }
 
-export default Object.freeze({
-  addVectors,
-  subtractVectors,
-  scaleVector,
-  dotProduct,
-  crossProduct,
-  magnitude,
-  normalize,
-  angleBetween,
-  projection,
-});
+/**
+ * Construye un vector 2D a partir de magnitud y ángulo (coordenadas
+ * polares a cartesianas). Útil para descomponer una fuerza o velocidad
+ * en sus componentes x/y.
+ * @param {number} magnitudeValue
+ * @param {number} angleRad - ángulo en radianes, medido desde el eje x
+ * @returns {number[]} [x, y]
+ * @example
+ * fromPolar(10, Math.PI / 2); // [~0, 10]
+ */
+export function fromPolar(magnitudeValue, angleRad) {
+  assertFiniteNumber(magnitudeValue, 'magnitudeValue');
+  assertFiniteNumber(angleRad, 'angleRad');
+  return [magnitudeValue * Math.cos(angleRad), magnitudeValue * Math.sin(angleRad)];
+}
+
+/**
+ * Descompone un vector 2D en magnitud y ángulo (cartesianas a polares).
+ * @param {number[]} v - vector de longitud 2, [x, y]
+ * @returns {{ magnitude: number, angleRad: number }}
+ * @throws {DimensionError} si v no tiene longitud 2
+ * @example
+ * toPolar([0, 10]); // { magnitude: 10, angleRad: 1.5707... }
+ */
+export function toPolar(v) {
+  assertVectorData(v, 'v');
+  if (v.length !== 2) throw new DimensionError('toPolar solo está definido para vectores de 2 componentes.', { length: v.length });
+  return { magnitude: magnitude(v), angleRad: Math.atan2(v[1], v[0]) };
+}

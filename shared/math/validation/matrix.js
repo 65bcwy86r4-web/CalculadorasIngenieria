@@ -1,225 +1,214 @@
-import { DimensionError } from "../errors/DimensionError.js";
-import { MathError } from "../errors/MathError.js";
-import { validateFiniteNumber, validateInteger } from "./numbers.js";
+/**
+ * validation/matrix.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: validar la "forma" de datos matriciales y
+ * vectoriales, ya sea como arreglos 2D crudos (number[][]) o como
+ * objetos "matrix-like" que exponen { rows, cols, data }.
+ *
+ * Este módulo NO importa algebra/matrix.js a propósito: si lo hiciera,
+ * algebra/matrix.js (que usa estas validaciones para construirse) y
+ * validation/matrix.js se necesitarían mutuamente, generando una
+ * dependencia circular. En vez de eso, se valida por "duck typing": si
+ * el objeto tiene la forma correcta, se acepta, sin importar si es una
+ * instancia real de Matrix.
+ * ---------------------------------------------------------------------------
+ */
+
+import { DimensionError } from '../errors/DimensionError.js';
+import { MathError } from '../errors/MathError.js';
+import { isFiniteNumber } from './numbers.js';
 
 /**
- * Returns the shape of a rectangular numeric matrix.
- *
- * @param {number[][]} matrix Matrix data.
- * @returns {{rows:number, cols:number}} Matrix shape.
- *
+ * @param {*} data
+ * @returns {boolean} true si data es un arreglo de arreglos, todas las
+ *   filas de igual longitud y con solo números finitos.
  * @example
- * getShape([[1, 2], [3, 4]]); // { rows: 2, cols: 2 }
+ * isRectangularArray([[1,2],[3,4]]); // true
+ * isRectangularArray([[1,2],[3]]); // false
  */
-export function getShape(matrix) {
-  validateMatrix(matrix);
-  return { rows: matrix.length, cols: matrix[0].length };
+export function isRectangularArray(data) {
+  if (!Array.isArray(data) || data.length === 0) return false;
+  if (!Array.isArray(data[0])) return false;
+  const cols = data[0].length;
+  if (cols === 0) return false;
+  return data.every((row) => Array.isArray(row) && row.length === cols && row.every(isFiniteNumber));
 }
 
 /**
- * Validates a rectangular matrix of finite numbers.
- *
- * @param {*} matrix Value to validate.
- * @param {string} [name="matrix"] Parameter name.
- * @returns {number[][]} The validated matrix.
- *
+ * @param {*} data - arreglo 2D
+ * @returns {boolean} true si es rectangular y además cuadrado (rows === cols)
  * @example
- * validateMatrix([[1, 2], [3, 4]], "A");
+ * isSquareData([[1,2],[3,4]]); // true
+ * isSquareData([[1,2,3],[4,5,6]]); // false
  */
-export function validateMatrix(matrix, name = "matrix") {
-  if (!Array.isArray(matrix) || matrix.length === 0) {
-    throw new DimensionError(`${name} must be a non-empty matrix`, {
-      name,
-      value: matrix,
-    });
+export function isSquareData(data) {
+  return isRectangularArray(data) && data.length === data[0].length;
+}
+
+/**
+ * @param {*} value
+ * @returns {boolean} true si value expone { rows:number, cols:number, data:number[][] }
+ *   con dimensiones consistentes entre sí (duck typing de "matrix-like").
+ * @example
+ * isMatrixLike({ rows: 2, cols: 2, data: [[1,0],[0,1]] }); // true
+ * isMatrixLike({ rows: 2, cols: 2, data: [[1,0]] }); // false
+ */
+export function isMatrixLike(value) {
+  if (!value || typeof value !== 'object') return false;
+  const { rows, cols, data } = value;
+  if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows <= 0 || cols <= 0) return false;
+  if (!Array.isArray(data) || data.length !== rows) return false;
+  return data.every((row) => Array.isArray(row) && row.length === cols);
+}
+
+/**
+ * @param {*} data
+ * @param {string} [paramName='data']
+ * @returns {number[][]}
+ * @throws {DimensionError} si no es un arreglo 2D rectangular de números finitos
+ * @example
+ * assertRectangularArray([[1,2],[3,4]], 'A'); // ok
+ * assertRectangularArray([[1,2],[3]], 'A'); // lanza DimensionError
+ */
+export function assertRectangularArray(data, paramName = 'data') {
+  if (!isRectangularArray(data)) {
+    throw new DimensionError(
+      `El parámetro "${paramName}" debe ser un arreglo rectangular (todas las filas de igual longitud) con solo números finitos.`,
+      { paramName }
+    );
   }
-  if (!Array.isArray(matrix[0]) || matrix[0].length === 0) {
-    throw new DimensionError(`${name} must have at least one column`, {
-      name,
-      value: matrix,
-    });
+  return data;
+}
+
+/**
+ * @param {*} data
+ * @param {string} [paramName='data']
+ * @returns {number[][]}
+ * @throws {DimensionError}
+ * @example
+ * assertSquareData([[1,2],[3,4]], 'A'); // ok
+ * assertSquareData([[1,2,3],[4,5,6]], 'A'); // lanza DimensionError
+ */
+export function assertSquareData(data, paramName = 'data') {
+  assertRectangularArray(data, paramName);
+  if (data.length !== data[0].length) {
+    throw new DimensionError(
+      `El parámetro "${paramName}" debe ser una matriz cuadrada (se recibió ${data.length}x${data[0].length}).`,
+      { paramName, rows: data.length, cols: data[0].length }
+    );
   }
-  const cols = matrix[0].length;
-  for (let row = 0; row < matrix.length; row++) {
-    if (!Array.isArray(matrix[row]) || matrix[row].length !== cols) {
-      throw new DimensionError(`${name} must be rectangular`, {
-        name,
-        row,
-        expectedColumns: cols,
-        actualColumns: Array.isArray(matrix[row]) ? matrix[row].length : null,
-      });
-    }
-    for (let col = 0; col < cols; col++) {
-      validateFiniteNumber(matrix[row][col], `${name}[${row}][${col}]`);
-    }
+  return data;
+}
+
+/**
+ * @param {*} value
+ * @param {string} [paramName='matriz']
+ * @returns {Object}
+ * @throws {MathError} code 'NOT_MATRIX_LIKE'
+ * @example
+ * assertMatrixLike({ rows: 2, cols: 2, data: [[1,0],[0,1]] }, 'A'); // ok
+ */
+export function assertMatrixLike(value, paramName = 'matriz') {
+  if (!isMatrixLike(value)) {
+    throw new MathError(
+      `El parámetro "${paramName}" debe ser una matriz (objeto con rows, cols y data consistentes).`,
+      'NOT_MATRIX_LIKE',
+      { paramName }
+    );
+  }
+  return value;
+}
+
+/**
+ * @param {Object} matrix - objeto matrix-like
+ * @param {string} [paramName='matriz']
+ * @returns {Object} la misma matriz recibida
+ * @throws {DimensionError} si matrix.rows !== matrix.cols
+ * @example
+ * assertSquareMatrix({ rows: 2, cols: 2, data: [[1,0],[0,1]] }, 'A'); // ok
+ */
+export function assertSquareMatrix(matrix, paramName = 'matriz') {
+  assertMatrixLike(matrix, paramName);
+  if (matrix.rows !== matrix.cols) {
+    throw new DimensionError(
+      `El parámetro "${paramName}" debe ser cuadrada (se recibió ${matrix.rows}x${matrix.cols}).`,
+      { paramName, rows: matrix.rows, cols: matrix.cols }
+    );
   }
   return matrix;
 }
 
 /**
- * Validates a square matrix.
- *
- * @param {number[][]} matrix Matrix to validate.
- * @param {string} [name="matrix"] Parameter name.
- * @returns {number[][]} The validated matrix.
- *
+ * Verifica que dos matrices tengan exactamente las mismas dimensiones
+ * (requerido para suma y resta).
+ * @param {Object} a
+ * @param {Object} b
+ * @param {string} [nameA='A']
+ * @param {string} [nameB='B']
+ * @throws {DimensionError}
  * @example
- * validateSquareMatrix([[1, 0], [0, 1]], "A");
+ * assertSameDimensions({ rows: 2, cols: 2, data: [[1,0],[0,1]] }, { rows: 2, cols: 2, data: [[1,1],[1,1]] }); // ok
  */
-export function validateSquareMatrix(matrix, name = "matrix") {
-  validateMatrix(matrix, name);
-  if (matrix.length !== matrix[0].length) {
-    throw new DimensionError(`${name} must be square`, {
-      name,
-      rows: matrix.length,
-      cols: matrix[0].length,
-    });
-  }
-  return matrix;
-}
-
-/**
- * Validates that two matrices have the same shape.
- *
- * @param {number[][]} matrixA First matrix.
- * @param {number[][]} matrixB Second matrix.
- * @returns {{rows:number, cols:number}} Shared shape.
- *
- * @example
- * validateSameDimensions([[1]], [[2]]);
- */
-export function validateSameDimensions(matrixA, matrixB) {
-  const a = getShape(matrixA);
-  const b = getShape(matrixB);
+export function assertSameDimensions(a, b, nameA = 'A', nameB = 'B') {
+  assertMatrixLike(a, nameA);
+  assertMatrixLike(b, nameB);
   if (a.rows !== b.rows || a.cols !== b.cols) {
-    throw new DimensionError("Matrices must have the same dimensions", {
-      left: a,
-      right: b,
-    });
+    throw new DimensionError(
+      `Las matrices "${nameA}" (${a.rows}x${a.cols}) y "${nameB}" (${b.rows}x${b.cols}) deben tener las mismas dimensiones.`,
+      { nameA, nameB, dimsA: [a.rows, a.cols], dimsB: [b.rows, b.cols] }
+    );
   }
-  return a;
 }
 
 /**
- * Validates matrix dimensions for multiplication.
- *
- * @param {number[][]} matrixA Left matrix.
- * @param {number[][]} matrixB Right matrix.
- * @returns {{left:{rows:number, cols:number}, right:{rows:number, cols:number}}}
- *
+ * Verifica que a.cols === b.rows (requerido para el producto A·B).
+ * @param {Object} a
+ * @param {Object} b
+ * @throws {DimensionError}
  * @example
- * validateMultipliable([[1, 2]], [[3], [4]]);
+ * assertMultipliable({ rows: 2, cols: 3, data: [[1,2,3],[4,5,6]] }, { rows: 3, cols: 1, data: [[1],[1],[1]] }); // ok
  */
-export function validateMultipliable(matrixA, matrixB) {
-  const left = getShape(matrixA);
-  const right = getShape(matrixB);
-  if (left.cols !== right.rows) {
-    throw new DimensionError("Matrices are not compatible for multiplication", {
-      left,
-      right,
-    });
+export function assertMultipliable(a, b) {
+  assertMatrixLike(a, 'A');
+  assertMatrixLike(b, 'B');
+  if (a.cols !== b.rows) {
+    throw new DimensionError(
+      `Producto no definido: A es ${a.rows}x${a.cols} y B es ${b.rows}x${b.cols}. Las columnas de A deben ser iguales a las filas de B.`,
+      { dimsA: [a.rows, a.cols], dimsB: [b.rows, b.cols] }
+    );
   }
-  return { left, right };
 }
 
 /**
- * Validates a vector of finite numbers.
- *
- * @param {*} vector Value to validate.
- * @param {string} [name="vector"] Parameter name.
- * @returns {number[]} The validated vector.
- *
+ * @param {*} data - arreglo plano
+ * @param {string} [paramName='vector']
+ * @returns {number[]}
+ * @throws {DimensionError}
  * @example
- * validateVector([1, 2, 3], "velocity");
+ * assertVectorData([1,2,3], 'b'); // ok
  */
-export function validateVector(vector, name = "vector") {
-  if (!Array.isArray(vector) || vector.length === 0) {
-    throw new DimensionError(`${name} must be a non-empty vector`, {
-      name,
-      value: vector,
-    });
+export function assertVectorData(data, paramName = 'vector') {
+  if (!Array.isArray(data) || data.length === 0 || !data.every(isFiniteNumber)) {
+    throw new DimensionError(`El parámetro "${paramName}" debe ser un arreglo no vacío de números finitos.`, { paramName });
   }
-  for (let index = 0; index < vector.length; index++) {
-    validateFiniteNumber(vector[index], `${name}[${index}]`);
-  }
-  return vector;
+  return data;
 }
 
 /**
- * Validates a vector length.
- *
- * @param {number[]} vector Vector to inspect.
- * @param {number} expectedLength Required length.
- * @param {string} [name="vector"] Parameter name.
- * @returns {number[]} The validated vector.
- *
+ * Verifica que dos vectores (arreglos planos) tengan la misma longitud.
+ * @param {number[]} a
+ * @param {number[]} b
+ * @param {string} [nameA='a']
+ * @param {string} [nameB='b']
+ * @throws {DimensionError}
  * @example
- * validateVectorLength([1, 2, 3], 3, "force");
+ * assertSameLength([1, 2], [3, 4]); // ok
+ * assertSameLength([1, 2], [3, 4, 5]); // lanza DimensionError
  */
-export function validateVectorLength(vector, expectedLength, name = "vector") {
-  validateVector(vector, name);
-  validateInteger(expectedLength, "expectedLength");
-  if (vector.length !== expectedLength) {
-    throw new DimensionError(`${name} must have length ${expectedLength}`, {
-      name,
-      expectedLength,
-      actualLength: vector.length,
-    });
+export function assertSameLength(a, b, nameA = 'a', nameB = 'b') {
+  assertVectorData(a, nameA);
+  assertVectorData(b, nameB);
+  if (a.length !== b.length) {
+    throw new DimensionError(`Los vectores "${nameA}" (largo ${a.length}) y "${nameB}" (largo ${b.length}) deben tener la misma longitud.`, { nameA, nameB });
   }
-  return vector;
 }
-
-/**
- * Validates Ax = b dimensions for linear systems.
- *
- * @param {number[][]} matrixA Coefficient matrix.
- * @param {number[]} vectorB Independent terms.
- * @returns {{rows:number, cols:number}} Matrix shape.
- *
- * @example
- * validateLinearSystem([[2, 1], [1, 3]], [1, 2]);
- */
-export function validateLinearSystem(matrixA, vectorB) {
-  const shape = getShape(matrixA);
-  validateVector(vectorB, "b");
-  if (shape.rows !== vectorB.length) {
-    throw new DimensionError("A row count must match b length", {
-      rows: shape.rows,
-      vectorLength: vectorB.length,
-    });
-  }
-  return shape;
-}
-
-/**
- * Validates a matrix index.
- *
- * @param {number[][]} matrix Matrix data.
- * @param {number} row Row index.
- * @param {number} col Column index.
- * @returns {{rows:number, cols:number}} Matrix shape.
- *
- * @example
- * validateMatrixIndex([[1]], 0, 0);
- */
-export function validateMatrixIndex(matrix, row, col) {
-  const shape = getShape(matrix);
-  validateInteger(row, "row");
-  validateInteger(col, "col");
-  if (row < 0 || row >= shape.rows || col < 0 || col >= shape.cols) {
-    throw new MathError("Matrix index out of bounds", { row, col, shape });
-  }
-  return shape;
-}
-
-export default Object.freeze({
-  getShape,
-  validateMatrix,
-  validateSquareMatrix,
-  validateSameDimensions,
-  validateMultipliable,
-  validateVector,
-  validateVectorLength,
-  validateLinearSystem,
-  validateMatrixIndex,
-});

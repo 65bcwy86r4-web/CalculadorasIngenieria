@@ -1,101 +1,74 @@
-import { MathError } from "../errors/MathError.js";
-import { validateFiniteNumber, validateFunction, validateInteger } from "../validation/numbers.js";
+/**
+ * numerical/integration.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: integración numérica de una función en [a, b]
+ * mediante la regla del trapecio y la regla de Simpson.
+ * ---------------------------------------------------------------------------
+ */
+
+import { assertFunction, assertFiniteNumber, assertInteger, assertPositive } from '../validation/numbers.js';
+import { MathError } from '../errors/MathError.js';
 
 /**
- * Integrates a function using the composite trapezoidal rule.
- *
- * @param {(x:number)=>number} fn Function to integrate.
- * @param {number} a Lower bound.
- * @param {number} b Upper bound.
- * @param {number} [subintervals=100] Number of subintervals.
- * @returns {number} Approximate integral.
- *
+ * Regla del trapecio compuesta. Si a > b, se integra igual y se devuelve
+ * el resultado con signo negativo (∫ₐᵇ f = −∫ᵦᵃ f), como es convención
+ * en cálculo.
+ * @param {(x:number)=>number} f
+ * @param {number} a
+ * @param {number} b
+ * @param {number} [n=100] - cantidad de subintervalos (n >= 1)
+ * @returns {number}
+ * @throws {MathError} si n no es un entero positivo
  * @example
- * trapezoidalRule((x) => x, 0, 1, 100); // about 0.5
+ * trapezoidal(x => x*x, 0, 1, 1000); // ≈ 0.3333
  */
-export function trapezoidalRule(fn, a, b, subintervals = 100) {
-  validateFunction(fn, "fn");
-  validateFiniteNumber(a, "a");
-  validateFiniteNumber(b, "b");
-  validateInteger(subintervals, "subintervals");
-  if (subintervals <= 0) {
-    throw new MathError("subintervals must be positive", { subintervals });
-  }
+export function trapezoidal(f, a, b, n = 100) {
+  assertFunction(f, 'f');
+  assertFiniteNumber(a, 'a');
+  assertFiniteNumber(b, 'b');
+  assertInteger(n, 'n');
+  assertPositive(n, 'n');
+  if (a === b) return 0;
 
-  const h = (b - a) / subintervals;
-  let sum = (fn(a) + fn(b)) / 2;
-  validateFiniteNumber(sum, "endpoint sum");
+  const sign = a > b ? -1 : 1;
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  const h = (hi - lo) / n;
 
-  for (let index = 1; index < subintervals; index++) {
-    const value = fn(a + index * h);
-    validateFiniteNumber(value, `fn(x_${index})`);
-    sum += value;
-  }
-
-  return sum * h;
+  let sum = f(lo) + f(hi);
+  for (let i = 1; i < n; i++) sum += 2 * f(lo + i * h);
+  return sign * (h / 2) * sum;
 }
 
 /**
- * Integrates a function using composite Simpson 1/3 rule.
- *
- * @param {(x:number)=>number} fn Function to integrate.
- * @param {number} a Lower bound.
- * @param {number} b Upper bound.
- * @param {number} [subintervals=100] Even number of subintervals.
- * @returns {number} Approximate integral.
- *
+ * Regla de Simpson compuesta (1/3). Requiere una cantidad par de
+ * subintervalos, condición necesaria para que la fórmula esté definida.
+ * @param {(x:number)=>number} f
+ * @param {number} a
+ * @param {number} b
+ * @param {number} [n=100] - cantidad de subintervalos (entero positivo y par)
+ * @returns {number}
+ * @throws {MathError} code 'INVALID_SUBINTERVALS' si n no es par
  * @example
- * simpsonRule((x) => x * x, 0, 1, 100); // about 0.333333
+ * simpson(x => x*x, 0, 1, 100); // ≈ 0.3333
  */
-export function simpsonRule(fn, a, b, subintervals = 100) {
-  validateFunction(fn, "fn");
-  validateFiniteNumber(a, "a");
-  validateFiniteNumber(b, "b");
-  validateInteger(subintervals, "subintervals");
-  if (subintervals <= 0 || subintervals % 2 !== 0) {
-    throw new MathError("Simpson rule requires a positive even number of subintervals", {
-      subintervals,
-    });
+export function simpson(f, a, b, n = 100) {
+  assertFunction(f, 'f');
+  assertFiniteNumber(a, 'a');
+  assertFiniteNumber(b, 'b');
+  assertInteger(n, 'n');
+  assertPositive(n, 'n');
+  if (n % 2 !== 0) {
+    throw new MathError('La regla de Simpson requiere una cantidad par de subintervalos.', 'INVALID_SUBINTERVALS', { n });
   }
+  if (a === b) return 0;
 
-  const h = (b - a) / subintervals;
-  let sum = fn(a) + fn(b);
-  validateFiniteNumber(sum, "endpoint sum");
+  const sign = a > b ? -1 : 1;
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  const h = (hi - lo) / n;
 
-  for (let index = 1; index < subintervals; index++) {
-    const value = fn(a + index * h);
-    validateFiniteNumber(value, `fn(x_${index})`);
-    sum += (index % 2 === 0 ? 2 : 4) * value;
-  }
-
-  return (sum * h) / 3;
+  let sum = f(lo) + f(hi);
+  for (let i = 1; i < n; i++) sum += (i % 2 === 0 ? 2 : 4) * f(lo + i * h);
+  return sign * (h / 3) * sum;
 }
-
-/**
- * Integrates a function with a selected numeric method.
- *
- * @param {(x:number)=>number} fn Function to integrate.
- * @param {number} a Lower bound.
- * @param {number} b Upper bound.
- * @param {{method?:"simpson"|"trapezoidal", subintervals?:number}} [options] Options.
- * @returns {number} Approximate integral.
- *
- * @example
- * integrate((x) => Math.sin(x), 0, Math.PI, { method: "simpson" });
- */
-export function integrate(fn, a, b, options = {}) {
-  const { method = "simpson", subintervals = 100 } = options;
-  if (method === "simpson") {
-    return simpsonRule(fn, a, b, subintervals);
-  }
-  if (method === "trapezoidal" || method === "trapecios") {
-    return trapezoidalRule(fn, a, b, subintervals);
-  }
-  throw new MathError("Unknown integration method", { method });
-}
-
-export default Object.freeze({
-  trapezoidalRule,
-  simpsonRule,
-  integrate,
-});

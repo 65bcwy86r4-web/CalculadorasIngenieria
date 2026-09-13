@@ -1,71 +1,65 @@
-import { MathError } from "../errors/MathError.js";
-import { DEFAULT_MAX_ITERATIONS, DEFAULT_TOLERANCE } from "../utils/constants.js";
-import { validateFiniteNumber, validateFunction, validateInteger } from "../validation/numbers.js";
+/**
+ * numerical/bisection.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: método de bisección para hallar raíces de
+ * f(x) = 0 en un intervalo [a, b] donde f cambia de signo (teorema de
+ * Bolzano). Ver numerical/newton.js para la justificación de por qué
+ * "no convergió" se modela como excepción.
+ * ---------------------------------------------------------------------------
+ */
+
+import { assertFunction, assertFiniteNumber, assertPositive, assertInteger } from '../validation/numbers.js';
+import { MathError } from '../errors/MathError.js';
+import { sign } from '../utils/helpers.js';
+import { DEFAULT_TOLERANCE, DEFAULT_MAX_ITERATIONS } from '../utils/constants.js';
 
 /**
- * Finds a root in [lower, upper] using bisection.
- *
- * @param {(x:number)=>number} fn Function whose root is wanted.
- * @param {number} lower Lower bound.
- * @param {number} upper Upper bound.
- * @param {{tolerance?:number, maxIterations?:number}} [options] Solver options.
- * @returns {{root:number, iterations:number, converged:boolean, value:number}}
- *
+ * @param {(x:number)=>number} f - función continua en [a, b]
+ * @param {number} a - extremo inferior
+ * @param {number} b - extremo superior
+ * @param {Object} [options={}]
+ * @param {number} [options.tolerance=DEFAULT_TOLERANCE]
+ * @param {number} [options.maxIterations=DEFAULT_MAX_ITERATIONS]
+ * @returns {{ root: number, iterations: number, history: Array<{iteration:number, a:number, b:number, mid:number, fMid:number}> }}
+ * @throws {MathError} code 'INVALID_INTERVAL' si f(a) y f(b) no tienen signos opuestos
+ * @throws {MathError} code 'CONVERGENCE_FAILURE' si no converge en maxIterations
  * @example
- * bisection((x) => x * x - 2, 1, 2).root;
+ * bisection(x => x*x - 2, 0, 2).root; // ≈ 1.41421356 (√2)
  */
-export function bisection(fn, lower, upper, options = {}) {
-  validateFunction(fn, "fn");
-  validateFiniteNumber(lower, "lower");
-  validateFiniteNumber(upper, "upper");
-  if (lower >= upper) {
-    throw new MathError("Bisection lower bound must be less than upper bound", {
-      lower,
-      upper,
-    });
-  }
-  const {
-    tolerance = DEFAULT_TOLERANCE,
-    maxIterations = DEFAULT_MAX_ITERATIONS,
-  } = options;
-  validateFiniteNumber(tolerance, "tolerance");
-  validateInteger(maxIterations, "maxIterations");
+export function bisection(f, a, b, options = {}) {
+  assertFunction(f, 'f');
+  assertFiniteNumber(a, 'a');
+  assertFiniteNumber(b, 'b');
+  const { tolerance = DEFAULT_TOLERANCE, maxIterations = DEFAULT_MAX_ITERATIONS } = options;
+  assertPositive(tolerance, 'tolerance');
+  assertInteger(maxIterations, 'maxIterations');
+  assertPositive(maxIterations, 'maxIterations');
 
-  let a = lower;
-  let b = upper;
-  let fa = fn(a);
-  let fb = fn(b);
-  validateFiniteNumber(fa, "fn(lower)");
-  validateFiniteNumber(fb, "fn(upper)");
-  if (fa * fb > 0) {
-    throw new MathError("Bisection requires a sign change in the interval", {
-      lower,
-      upper,
-      fa,
-      fb,
-    });
+  let lo = a,
+    hi = b;
+  let fLo = f(lo),
+    fHi = f(hi);
+  if (Math.abs(fLo) <= tolerance) return { root: lo, iterations: 0, history: [{ iteration: 0, a: lo, b: hi, mid: lo, fMid: fLo }] };
+  if (Math.abs(fHi) <= tolerance) return { root: hi, iterations: 0, history: [{ iteration: 0, a: lo, b: hi, mid: hi, fMid: fHi }] };
+  if (sign(fLo) === sign(fHi)) {
+    throw new MathError('f(a) y f(b) deben tener signos opuestos para garantizar una raíz en [a,b] (teorema de Bolzano).', 'INVALID_INTERVAL', { a, b, fa: fLo, fb: fHi });
   }
 
-  for (let iteration = 1; iteration <= maxIterations; iteration++) {
-    const mid = (a + b) / 2;
-    const fm = fn(mid);
-    validateFiniteNumber(fm, "fn(mid)");
-    if (Math.abs(fm) <= tolerance || Math.abs(b - a) / 2 <= tolerance) {
-      return { root: mid, iterations: iteration, converged: true, value: fm };
+  const history = [];
+  for (let iter = 0; iter < maxIterations; iter++) {
+    const mid = (lo + hi) / 2;
+    const fMid = f(mid);
+    history.push({ iteration: iter, a: lo, b: hi, mid, fMid });
+    if (Math.abs(fMid) <= tolerance || (hi - lo) / 2 <= tolerance) {
+      return { root: mid, iterations: iter + 1, history };
     }
-    if (fa * fm < 0) {
-      b = mid;
-      fb = fm;
+    if (sign(fMid) === sign(fLo)) {
+      lo = mid;
+      fLo = fMid;
     } else {
-      a = mid;
-      fa = fm;
+      hi = mid;
+      fHi = fMid;
     }
   }
-
-  const root = (a + b) / 2;
-  return { root, iterations: maxIterations, converged: false, value: fn(root) };
+  throw new MathError(`Bisección no convergió en ${maxIterations} iteraciones con tolerancia ${tolerance}.`, 'CONVERGENCE_FAILURE', { maxIterations, tolerance, lastInterval: [lo, hi], history });
 }
-
-export default Object.freeze({
-  bisection,
-});

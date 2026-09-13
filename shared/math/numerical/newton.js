@@ -1,60 +1,66 @@
-import { MathError } from "../errors/MathError.js";
-import { isNearlyZero } from "../formatter/precision.js";
-import { DEFAULT_MAX_ITERATIONS, DEFAULT_TOLERANCE } from "../utils/constants.js";
-import { numericalDerivative } from "../utils/helpers.js";
-import { validateFiniteNumber, validateFunction, validateInteger } from "../validation/numbers.js";
+/**
+ * numerical/newton.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: método de Newton-Raphson para hallar raíces de
+ * f(x) = 0.
+ *
+ * Decisión de diseño (aplica también a bisection.js y secant.js): si el
+ * método no converge dentro de maxIterations, se lanza MathError en vez
+ * de devolver silenciosamente la última estimación. A diferencia de
+ * gauss.js::solveSystem (donde "sin solución única" es una respuesta
+ * matemática legítima), acá "no convergió" es una falla del proceso
+ * iterativo, no un resultado válido: devolverlo como si fuera un valor
+ * normal invita a usarlo por error. El error incluye el historial
+ * completo de iteraciones en `context` para diagnóstico.
+ * ---------------------------------------------------------------------------
+ */
+
+import { assertFunction, assertFiniteNumber, assertPositive, assertInteger } from '../validation/numbers.js';
+import { MathError } from '../errors/MathError.js';
+import { DEFAULT_TOLERANCE, DEFAULT_MAX_ITERATIONS, DEFAULT_DERIVATIVE_STEP } from '../utils/constants.js';
 
 /**
- * Finds a root with the Newton-Raphson method.
- *
- * @param {(x:number)=>number} fn Function whose root is wanted.
- * @param {(x:number)=>number|null} derivative Derivative function. If null, a numeric derivative is used.
- * @param {number} initialGuess Initial value.
- * @param {{tolerance?:number, maxIterations?:number}} [options] Solver options.
- * @returns {{root:number, iterations:number, converged:boolean, value:number}}
- *
+ * @param {(x:number)=>number} f - función continua y derivable
+ * @param {number} x0 - estimación inicial
+ * @param {Object} [options={}]
+ * @param {(x:number)=>number} [options.fPrime] - derivada analítica; si se
+ *   omite, se aproxima por diferencias finitas centradas
+ * @param {number} [options.tolerance=DEFAULT_TOLERANCE] - se detiene cuando |f(x)| <= tolerance
+ * @param {number} [options.maxIterations=DEFAULT_MAX_ITERATIONS]
+ * @param {number} [options.derivativeStep=DEFAULT_DERIVATIVE_STEP] - paso h para la derivada numérica
+ * @returns {{ root: number, iterations: number, history: Array<{iteration:number, x:number, fx:number}> }}
+ * @throws {MathError} code 'ZERO_DERIVATIVE' si la derivada se anula durante la iteración
+ * @throws {MathError} code 'DIVERGENCE' si x deja de ser finito
+ * @throws {MathError} code 'CONVERGENCE_FAILURE' si no converge en maxIterations
  * @example
- * newtonRaphson((x) => x * x - 2, (x) => 2 * x, 1).root;
+ * newtonRaphson(x => x*x - 2, 1).root; // ≈ 1.41421356 (√2)
  */
-export function newtonRaphson(fn, derivative, initialGuess, options = {}) {
-  validateFunction(fn, "fn");
-  if (derivative !== null && derivative !== undefined) validateFunction(derivative, "derivative");
-  validateFiniteNumber(initialGuess, "initialGuess");
-  const {
-    tolerance = DEFAULT_TOLERANCE,
-    maxIterations = DEFAULT_MAX_ITERATIONS,
-  } = options;
-  validateFiniteNumber(tolerance, "tolerance");
-  validateInteger(maxIterations, "maxIterations");
+export function newtonRaphson(f, x0, options = {}) {
+  assertFunction(f, 'f');
+  assertFiniteNumber(x0, 'x0');
+  const { fPrime = null, tolerance = DEFAULT_TOLERANCE, maxIterations = DEFAULT_MAX_ITERATIONS, derivativeStep = DEFAULT_DERIVATIVE_STEP } = options;
+  assertPositive(tolerance, 'tolerance');
+  assertInteger(maxIterations, 'maxIterations');
+  assertPositive(maxIterations, 'maxIterations');
+  if (fPrime !== null) assertFunction(fPrime, 'fPrime');
 
-  let x = initialGuess;
-  for (let iteration = 1; iteration <= maxIterations; iteration++) {
-    const y = fn(x);
-    validateFiniteNumber(y, "fn(x)");
-    if (Math.abs(y) <= tolerance) {
-      return { root: x, iterations: iteration - 1, converged: true, value: y };
-    }
+  const derivative = fPrime || ((x) => (f(x + derivativeStep) - f(x - derivativeStep)) / (2 * derivativeStep));
+  let x = x0;
+  const history = [];
 
-    const slope = derivative ? derivative(x) : numericalDerivative(fn, x);
-    validateFiniteNumber(slope, "derivative(x)");
-    if (isNearlyZero(slope, tolerance)) {
-      throw new MathError("Newton-Raphson derivative is zero or nearly zero", {
-        x,
-        iteration,
-      });
-    }
+  for (let iter = 0; iter < maxIterations; iter++) {
+    const fx = f(x);
+    history.push({ iteration: iter, x, fx });
+    if (Math.abs(fx) <= tolerance) return { root: x, iterations: iter, history };
 
-    const next = x - y / slope;
-    validateFiniteNumber(next, "next");
-    if (Math.abs(next - x) <= tolerance) {
-      return { root: next, iterations: iteration, converged: true, value: fn(next) };
+    const dfx = derivative(x);
+    if (Math.abs(dfx) < 1e-14) {
+      throw new MathError('La derivada es ~0: Newton-Raphson no puede continuar (posible extremo local).', 'ZERO_DERIVATIVE', { x, iteration: iter, history });
     }
-    x = next;
+    x = x - fx / dfx;
+    if (!Number.isFinite(x)) {
+      throw new MathError('La iteración de Newton-Raphson diverge (x dejó de ser un número finito).', 'DIVERGENCE', { iteration: iter, history });
+    }
   }
-
-  return { root: x, iterations: maxIterations, converged: false, value: fn(x) };
+  throw new MathError(`Newton-Raphson no convergió en ${maxIterations} iteraciones con tolerancia ${tolerance}.`, 'CONVERGENCE_FAILURE', { maxIterations, tolerance, lastX: x, history });
 }
-
-export default Object.freeze({
-  newtonRaphson,
-});

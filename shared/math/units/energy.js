@@ -1,38 +1,36 @@
-import { createLinearUnitConverter } from "../utils/helpers.js";
+/**
+ * units/energy.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: conversión entre unidades de energía. Unidad
+ * base interna: joule (J).
+ * ---------------------------------------------------------------------------
+ */
+
+import { createUnitConverter } from '../utils/helpers.js';
+
+const definitions = {
+  J: { toBase: (v) => v, fromBase: (v) => v },
+  kJ: { toBase: (v) => v * 1000, fromBase: (v) => v / 1000 },
+  cal: { toBase: (v) => v * 4.184, fromBase: (v) => v / 4.184 },
+  kcal: { toBase: (v) => v * 4184, fromBase: (v) => v / 4184 },
+  Wh: { toBase: (v) => v * 3600, fromBase: (v) => v / 3600 },
+  kWh: { toBase: (v) => v * 3.6e6, fromBase: (v) => v / 3.6e6 },
+  BTU: { toBase: (v) => v * 1055.05585262, fromBase: (v) => v / 1055.05585262 },
+  ftlb: { toBase: (v) => v * 1.3558179483314, fromBase: (v) => v / 1.3558179483314 },
+};
+
+const converter = createUnitConverter(definitions, 'energía');
 
 /**
- * Energy conversion factors to joules.
- *
+ * @param {number} value
+ * @param {string} from - una de: J, kJ, cal, kcal, Wh, kWh, BTU, ftlb
+ * @param {string} to
+ * @returns {number}
+ * @throws {MathError} code 'UNKNOWN_UNIT'
  * @example
- * import { convert } from "./shared/math/units/energy.js";
- * convert(1, "kWh", "J"); // 3600000
+ * convert(1, 'kWh', 'J'); // 3600000
  */
-export const energyUnits = Object.freeze({
-  J: 1,
-  kJ: 1000,
-  MJ: 1000000,
-  Wh: 3600,
-  kWh: 3600000,
-  cal: 4.184,
-  kcal: 4184,
-  BTU: 1055.05585262,
-  eV: 1.602176634e-19,
-});
+export const convert = converter.convert;
 
-/**
- * Converts energy values.
- *
- * @param {number} value Energy value.
- * @param {string} fromUnit Source unit.
- * @param {string} toUnit Target unit.
- * @returns {number} Converted energy.
- *
- * @example
- * convert(1, "kWh", "J"); // 3600000
- */
-export const convert = createLinearUnitConverter(energyUnits, "energy");
-
-export default Object.freeze({
-  energyUnits,
-  convert,
-});
+/** @type {string[]} */
+export const units = converter.units;

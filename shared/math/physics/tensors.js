@@ -1,187 +1,130 @@
-import { DimensionError } from "../errors/DimensionError.js";
-import { MathError } from "../errors/MathError.js";
-import { validateFiniteNumber, validateInteger } from "../validation/numbers.js";
+/**
+ * physics/tensors.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: operaciones de álgebra tensorial de rango 2
+ * (tensor de tensiones, tensor de inercia, etc.) que NO ya provee
+ * algebra/matrix.js. Un tensor de rango 2 se representa simplemente como
+ * una Matrix cuadrada: para suma, resta, escalado, transposición y traza,
+ * usar directamente los métodos de Matrix (matrix.add, .subtract,
+ * .scalarMultiply, .transpose, .trace) — no se reimplementan acá.
+ *
+ * Este módulo agrega justamente lo que es específico del análisis
+ * tensorial: descomposición simétrica/antisimétrica, doble contracción,
+ * valores y direcciones principales (autovalores/autovectores del propio
+ * tensor) y la tensión de Von Mises. Los valores/direcciones principales
+ * reutilizan algebra/eigen.js en vez de reimplementar un solver.
+ * ---------------------------------------------------------------------------
+ */
 
-function validateShape(shape) {
-  if (!Array.isArray(shape) || shape.length === 0) {
-    throw new DimensionError("Tensor shape must be a non-empty array", { shape });
-  }
-  for (let index = 0; index < shape.length; index++) {
-    validateInteger(shape[index], `shape[${index}]`);
-    if (shape[index] <= 0) {
-      throw new DimensionError("Tensor dimensions must be positive", { shape });
-    }
-  }
-}
+import { eigenvaluesQR, eigenvectors } from '../algebra/eigen.js';
+import { assertSquareMatrix } from '../validation/matrix.js';
+import { DimensionError } from '../errors/DimensionError.js';
 
-function mapTensor(tensor, mapper, path = []) {
-  if (Array.isArray(tensor)) {
-    return tensor.map((item, index) => mapTensor(item, mapper, [...path, index]));
-  }
-  validateFiniteNumber(tensor, `tensor[${path.join("][")}]`);
-  return mapper(tensor, path);
-}
-
-function assertSameTensorShape(shapeA, shapeB) {
-  if (shapeA.length !== shapeB.length || shapeA.some((value, index) => value !== shapeB[index])) {
-    throw new DimensionError("Tensors must have the same shape", {
-      left: shapeA,
-      right: shapeB,
-    });
-  }
-}
-
-function combineTensors(tensorA, tensorB, operation) {
-  const shapeA = tensorShape(tensorA);
-  const shapeB = tensorShape(tensorB);
-  assertSameTensorShape(shapeA, shapeB);
-  if (!Array.isArray(tensorA)) {
-    return operation(tensorA, tensorB);
-  }
-  return tensorA.map((item, index) => combineTensors(item, tensorB[index], operation));
+/**
+ * Parte simétrica de un tensor: Tsym = (T + Tᵀ) / 2.
+ * @param {Matrix} tensor
+ * @returns {Matrix}
+ * @throws {DimensionError} si no es cuadrado
+ * @example
+ * symmetricPart(new Matrix([[0,2],[0,0]])).toArray(); // [[0,1],[1,0]]
+ */
+export function symmetricPart(tensor) {
+  assertSquareMatrix(tensor, 'tensor');
+  return tensor.add(tensor.transpose()).scalarMultiply(0.5);
 }
 
 /**
- * Returns the shape of a rectangular tensor.
- *
- * @param {*} tensor Tensor data.
- * @returns {number[]} Tensor shape.
- *
+ * Parte antisimétrica (o "esviada") de un tensor: Tanti = (T − Tᵀ) / 2.
+ * @param {Matrix} tensor
+ * @returns {Matrix}
+ * @throws {DimensionError} si no es cuadrado
  * @example
- * tensorShape([[[1], [2]], [[3], [4]]]); // [2, 2, 1]
+ * antisymmetricPart(new Matrix([[0,2],[0,0]])).toArray(); // [[0,1],[-1,0]]
  */
-export function tensorShape(tensor) {
-  if (!Array.isArray(tensor)) {
-    validateFiniteNumber(tensor, "tensor");
-    return [];
-  }
-  if (tensor.length === 0) {
-    throw new DimensionError("Tensor dimensions cannot be empty");
-  }
-  const firstShape = tensorShape(tensor[0]);
-  for (let index = 1; index < tensor.length; index++) {
-    const currentShape = tensorShape(tensor[index]);
-    assertSameTensorShape(firstShape, currentShape);
-  }
-  return [tensor.length, ...firstShape];
+export function antisymmetricPart(tensor) {
+  assertSquareMatrix(tensor, 'tensor');
+  return tensor.subtract(tensor.transpose()).scalarMultiply(0.5);
 }
 
 /**
- * Creates a tensor with a given shape.
- *
- * @param {number[]} shape Tensor shape.
- * @param {number|((indices:number[])=>number)} [fill=0] Fill value or initializer.
- * @returns {*} Tensor data.
- *
+ * Doble contracción (producto interno de Frobenius): A:B = Σᵢⱼ Aᵢⱼ·Bᵢⱼ.
+ * Aparece, por ejemplo, en el cálculo de energía de deformación.
+ * @param {Matrix} a
+ * @param {Matrix} b
+ * @returns {number}
+ * @throws {DimensionError} si a y b no tienen las mismas dimensiones
  * @example
- * createTensor([2, 2], 0); // [[0, 0], [0, 0]]
+ * doubleContraction(Matrix.identity(2), Matrix.identity(2)); // 2
  */
-export function createTensor(shape, fill = 0) {
-  validateShape(shape);
-  const isInitializer = typeof fill === "function";
-  if (!isInitializer) validateFiniteNumber(fill, "fill");
-
-  function build(depth, indices) {
-    if (depth === shape.length) {
-      const value = isInitializer ? fill(indices) : fill;
-      return validateFiniteNumber(value, `tensor[${indices.join("][")}]`);
-    }
-    return Array.from({ length: shape[depth] }, (_, index) => build(depth + 1, [...indices, index]));
-  }
-
-  return build(0, []);
-}
-
-/**
- * Adds tensors with identical shape.
- *
- * @param {*} tensorA First tensor.
- * @param {*} tensorB Second tensor.
- * @returns {*} Tensor sum.
- *
- * @example
- * addTensors([[1]], [[2]]); // [[3]]
- */
-export function addTensors(tensorA, tensorB) {
-  return combineTensors(tensorA, tensorB, (a, b) => a + b);
-}
-
-/**
- * Subtracts tensors with identical shape.
- *
- * @param {*} tensorA First tensor.
- * @param {*} tensorB Second tensor.
- * @returns {*} Tensor difference.
- *
- * @example
- * subtractTensors([[3]], [[2]]); // [[1]]
- */
-export function subtractTensors(tensorA, tensorB) {
-  return combineTensors(tensorA, tensorB, (a, b) => a - b);
-}
-
-/**
- * Scales a tensor.
- *
- * @param {*} tensor Tensor data.
- * @param {number} scalar Scalar value.
- * @returns {*} Scaled tensor.
- *
- * @example
- * scaleTensor([[1, 2]], 2); // [[2, 4]]
- */
-export function scaleTensor(tensor, scalar) {
-  tensorShape(tensor);
-  validateFiniteNumber(scalar, "scalar");
-  return mapTensor(tensor, (value) => value * scalar);
-}
-
-/**
- * Computes the outer product of two vectors as a rank-2 tensor.
- *
- * @param {number[]} vectorA First vector.
- * @param {number[]} vectorB Second vector.
- * @returns {number[][]} Outer product.
- *
- * @example
- * outerProduct([1, 2], [3, 4]); // [[3, 4], [6, 8]]
- */
-export function outerProduct(vectorA, vectorB) {
-  const shapeA = tensorShape(vectorA);
-  const shapeB = tensorShape(vectorB);
-  if (shapeA.length !== 1 || shapeB.length !== 1) {
-    throw new DimensionError("Outer product requires vectors", { shapeA, shapeB });
-  }
-  return vectorA.map((left) => vectorB.map((right) => left * right));
-}
-
-/**
- * Computes the trace of a rank-2 tensor.
- *
- * @param {number[][]} tensor Rank-2 tensor.
- * @returns {number} Trace.
- *
- * @example
- * tensorTrace([[1, 2], [3, 4]]); // 5
- */
-export function tensorTrace(tensor) {
-  const shape = tensorShape(tensor);
-  if (shape.length !== 2 || shape[0] !== shape[1]) {
-    throw new MathError("Tensor trace requires a square rank-2 tensor", { shape });
+export function doubleContraction(a, b) {
+  if (a.rows !== b.rows || a.cols !== b.cols) {
+    throw new DimensionError(`Las dimensiones de A (${a.rows}x${a.cols}) y B (${b.rows}x${b.cols}) deben coincidir para la doble contracción.`, { dimsA: [a.rows, a.cols], dimsB: [b.rows, b.cols] });
   }
   let sum = 0;
-  for (let index = 0; index < shape[0]; index++) {
-    sum += tensor[index][index];
-  }
+  for (let i = 0; i < a.rows; i++) for (let j = 0; j < a.cols; j++) sum += a.data[i][j] * b.data[i][j];
   return sum;
 }
 
-export default Object.freeze({
-  tensorShape,
-  createTensor,
-  addTensors,
-  subtractTensors,
-  scaleTensor,
-  outerProduct,
-  tensorTrace,
-});
+/**
+ * Valor medio de la diagonal (por ejemplo, la tensión hidrostática de un
+ * tensor de tensiones es su traza dividida 3): traza(T) / n.
+ * @param {Matrix} tensor
+ * @returns {number}
+ * @throws {DimensionError} si no es cuadrado
+ * @example
+ * meanValue(new Matrix([[6,0,0],[0,3,0],[0,0,0]])); // 3
+ */
+export function meanValue(tensor) {
+  return tensor.trace() / tensor.rows;
+}
+
+/**
+ * Valores principales de un tensor (autovalores). Para tensores físicos
+ * simétricos (tensión, inercia), son siempre reales, lo que garantiza la
+ * convergencia del algoritmo QR usado internamente.
+ * @param {Matrix} tensor
+ * @returns {number[]} valores principales, de mayor a menor
+ * @throws {DimensionError} si no es cuadrado
+ * @example
+ * principalValues(new Matrix([[2,1],[1,2]])); // [3, 1]
+ */
+export function principalValues(tensor) {
+  return eigenvaluesQR(tensor).values;
+}
+
+/**
+ * Valores y direcciones principales de un tensor (autovalores y
+ * autovectores): las direcciones principales son los ejes donde el
+ * tensor actúa de forma puramente diagonal (sin componentes de corte).
+ * @param {Matrix} tensor
+ * @returns {Array<{ value: number, direction: number[]|null }>}
+ * @example
+ * principalDirections(new Matrix([[2,1],[1,2]]));
+ */
+export function principalDirections(tensor) {
+  const values = principalValues(tensor);
+  return eigenvectors(tensor, values).map((p) => ({ value: p.lambda, direction: p.vector }));
+}
+
+/**
+ * Tensión equivalente de Von Mises, indicador escalar de un estado de
+ * tensiones multiaxial usado para comparar contra el límite de fluencia
+ * del material en análisis estructural.
+ *
+ * Acepta tensores de 3x3 (caso general) o 2x2 (tensión plana, asumiendo
+ * σ₃ = 0). Internamente usa las tensiones principales del tensor.
+ * @param {Matrix} stressTensor - tensor de tensiones, simétrico, 2x2 o 3x3
+ * @returns {number}
+ * @throws {DimensionError} si el tensor no es 2x2 ni 3x3
+ * @example
+ * vonMisesStress(new Matrix([[100, 0], [0, 0]])); // 100 (tracción uniaxial)
+ */
+export function vonMisesStress(stressTensor) {
+  assertSquareMatrix(stressTensor, 'stressTensor');
+  if (stressTensor.rows !== 2 && stressTensor.rows !== 3) {
+    throw new DimensionError('vonMisesStress requiere un tensor de 2x2 (tensión plana) o 3x3.', { size: stressTensor.rows });
+  }
+  const principals = principalValues(stressTensor);
+  const [s1, s2, s3] = stressTensor.rows === 2 ? [principals[0], principals[1], 0] : principals;
+  return Math.sqrt(0.5 * ((s1 - s2) ** 2 + (s2 - s3) ** 2 + (s3 - s1) ** 2));
+}

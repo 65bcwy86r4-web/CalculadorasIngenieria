@@ -1,329 +1,326 @@
-import { DimensionError } from "../errors/DimensionError.js";
-import { cleanNumber } from "../formatter/precision.js";
-import { createArray, cloneArrayData } from "../utils/helpers.js";
-import { validateFiniteNumber, validateInteger } from "../validation/numbers.js";
-import {
-  getShape,
-  validateMatrix,
-  validateMatrixIndex,
-  validateMultipliable,
-  validateSameDimensions,
-  validateSquareMatrix,
-  validateVector,
-} from "../validation/matrix.js";
-
 /**
- * Creates a matrix with fixed dimensions.
+ * algebra/matrix.js
+ * ---------------------------------------------------------------------------
+ * Responsabilidad única: representar una matriz numérica y sus operaciones
+ * elementales (construcción, aritmética básica, transposición, potencia,
+ * propiedades estructurales y normas). Los algoritmos "grandes"
+ * (determinante, inversa, Gauss, LU, QR, Cholesky, autovalores) viven en
+ * sus propios archivos y consumen esta clase; no se implementan acá para
+ * mantener este módulo cohesivo y del tamaño justo.
  *
- * @param {number} rows Row count.
- * @param {number} cols Column count.
- * @param {number|((row:number,col:number)=>number)} [fill=0] Fill value or initializer.
- * @returns {number[][]} Created matrix.
- *
- * @example
- * const A = createMatrix(2, 3, 0);
+ * Ningún otro módulo del motor debe reimplementar suma, producto,
+ * transposición, etc.: todos deben construir y operar sobre instancias
+ * de Matrix definidas acá (DRY).
+ * ---------------------------------------------------------------------------
  */
-export function createMatrix(rows, cols, fill = 0) {
-  validateInteger(rows, "rows");
-  validateInteger(cols, "cols");
-  if (rows <= 0 || cols <= 0) {
-    throw new DimensionError("Matrix dimensions must be positive", { rows, cols });
+
+import { DimensionError } from '../errors/DimensionError.js';
+import { MathError } from '../errors/MathError.js';
+import { assertRectangularArray, assertSameDimensions, assertMultipliable, assertSquareMatrix } from '../validation/matrix.js';
+import { assertInteger, assertNonNegative } from '../validation/numbers.js';
+import { DEFAULT_TOLERANCE } from '../utils/constants.js';
+
+export class Matrix {
+  /**
+   * @param {number[][]} data - arreglo 2D rectangular de números finitos.
+   * @throws {DimensionError} si data no es rectangular o contiene valores no finitos
+   * @example
+   * const A = new Matrix([[1, 2], [3, 4]]);
+   */
+  constructor(data) {
+    assertRectangularArray(data, 'data');
+    this.rows = data.length;
+    this.cols = data[0].length;
+    this.data = data.map((row) => row.slice());
   }
 
-  const isInitializer = typeof fill === "function";
-  if (!isInitializer) {
-    validateFiniteNumber(fill, "fill");
+  /* ------------------------------ Constructores estáticos ------------------------------ */
+
+  /**
+   * @param {number[][]} data
+   * @returns {Matrix}
+   * @example
+   * Matrix.fromArray([[1, 0], [0, 1]]);
+   */
+  static fromArray(data) {
+    return new Matrix(data);
   }
 
-  return createArray(rows, (row) =>
-    createArray(cols, (col) => {
-      const value = isInitializer ? fill(row, col) : fill;
-      return validateFiniteNumber(value, `matrix[${row}][${col}]`);
-    }),
-  );
-}
-
-/**
- * Clones raw matrix data.
- *
- * @param {number[][]} matrix Matrix to clone.
- * @returns {number[][]} Cloned matrix.
- *
- * @example
- * const copy = cloneMatrix([[1, 2], [3, 4]]);
- */
-export function cloneMatrix(matrix) {
-  validateMatrix(matrix);
-  return cloneArrayData(matrix);
-}
-
-/**
- * Creates a validated matrix from array data.
- *
- * @param {number[][]} data Source data.
- * @returns {number[][]} Cloned matrix.
- *
- * @example
- * const A = fromArray([[1, 2], [3, 4]]);
- */
-export function fromArray(data) {
-  return cloneMatrix(data);
-}
-
-/**
- * Creates a zero matrix.
- *
- * @param {number} rows Row count.
- * @param {number} cols Column count.
- * @returns {number[][]} Zero matrix.
- *
- * @example
- * zeros(2, 2); // [[0, 0], [0, 0]]
- */
-export function zeros(rows, cols) {
-  return createMatrix(rows, cols, 0);
-}
-
-/**
- * Creates an identity matrix.
- *
- * @param {number} size Matrix size.
- * @returns {number[][]} Identity matrix.
- *
- * @example
- * identity(3);
- */
-export function identity(size) {
-  validateInteger(size, "size");
-  if (size <= 0) {
-    throw new DimensionError("Identity matrix size must be positive", { size });
+  /**
+   * @param {number} n - dimensión (n >= 1)
+   * @returns {Matrix} matriz identidad de n×n
+   * @example
+   * Matrix.identity(3);
+   */
+  static identity(n) {
+    assertInteger(n, 'n');
+    if (n < 1) throw new MathError('identity requiere n >= 1.', 'NOT_POSITIVE', { n });
+    const data = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)));
+    return new Matrix(data);
   }
-  return createMatrix(size, size, (row, col) => (row === col ? 1 : 0));
-}
 
-/**
- * Transposes a matrix.
- *
- * @param {number[][]} matrix Matrix to transpose.
- * @returns {number[][]} Transposed matrix.
- *
- * @example
- * transpose([[1, 2, 3]]); // [[1], [2], [3]]
- */
-export function transpose(matrix) {
-  const { rows, cols } = getShape(matrix);
-  return createMatrix(cols, rows, (row, col) => matrix[col][row]);
-}
+  /**
+   * @param {number} rows
+   * @param {number} [cols=rows]
+   * @returns {Matrix} matriz de ceros
+   * @example
+   * Matrix.zeros(2, 3);
+   */
+  static zeros(rows, cols = rows) {
+    assertInteger(rows, 'rows');
+    assertInteger(cols, 'cols');
+    if (rows < 1 || cols < 1) throw new MathError('zeros requiere rows y cols >= 1.', 'NOT_POSITIVE', { rows, cols });
+    return new Matrix(Array.from({ length: rows }, () => new Array(cols).fill(0)));
+  }
 
-/**
- * Adds two matrices with the same dimensions.
- *
- * @param {number[][]} matrixA First matrix.
- * @param {number[][]} matrixB Second matrix.
- * @returns {number[][]} Matrix sum.
- *
- * @example
- * addMatrices([[1]], [[2]]); // [[3]]
- */
-export function addMatrices(matrixA, matrixB) {
-  const { rows, cols } = validateSameDimensions(matrixA, matrixB);
-  return createMatrix(rows, cols, (row, col) => matrixA[row][col] + matrixB[row][col]);
-}
-
-/**
- * Subtracts two matrices with the same dimensions.
- *
- * @param {number[][]} matrixA First matrix.
- * @param {number[][]} matrixB Second matrix.
- * @returns {number[][]} Matrix difference.
- *
- * @example
- * subtractMatrices([[3]], [[2]]); // [[1]]
- */
-export function subtractMatrices(matrixA, matrixB) {
-  const { rows, cols } = validateSameDimensions(matrixA, matrixB);
-  return createMatrix(rows, cols, (row, col) => matrixA[row][col] - matrixB[row][col]);
-}
-
-/**
- * Multiplies every matrix value by a scalar.
- *
- * @param {number[][]} matrix Matrix to scale.
- * @param {number} scalar Scalar value.
- * @returns {number[][]} Scaled matrix.
- *
- * @example
- * scaleMatrix([[1, 2]], 3); // [[3, 6]]
- */
-export function scaleMatrix(matrix, scalar) {
-  const { rows, cols } = getShape(matrix);
-  validateFiniteNumber(scalar, "scalar");
-  return createMatrix(rows, cols, (row, col) => matrix[row][col] * scalar);
-}
-
-/**
- * Multiplies two matrices.
- *
- * @param {number[][]} matrixA Left matrix.
- * @param {number[][]} matrixB Right matrix.
- * @returns {number[][]} Matrix product.
- *
- * @example
- * multiplyMatrices([[1, 2]], [[3], [4]]); // [[11]]
- */
-export function multiplyMatrices(matrixA, matrixB) {
-  const { left, right } = validateMultipliable(matrixA, matrixB);
-  return createMatrix(left.rows, right.cols, (row, col) => {
-    let sum = 0;
-    for (let index = 0; index < left.cols; index++) {
-      sum += matrixA[row][index] * matrixB[index][col];
+  /**
+   * @param {number[]} values - valores de la diagonal principal
+   * @returns {Matrix} matriz diagonal n×n con `values` en la diagonal
+   * @example
+   * Matrix.diagonal([1, 2, 3]);
+   */
+  static diagonal(values) {
+    if (!Array.isArray(values) || values.length === 0) {
+      throw new MathError('diagonal requiere un arreglo no vacío de valores.', 'NOT_A_NUMBER', { values });
     }
-    return cleanNumber(sum);
-  });
-}
-
-/**
- * Multiplies a matrix by a vector.
- *
- * @param {number[][]} matrix Matrix.
- * @param {number[]} vector Vector.
- * @returns {number[]} Product vector.
- *
- * @example
- * multiplyMatrixVector([[2, 0], [0, 3]], [4, 5]); // [8, 15]
- */
-export function multiplyMatrixVector(matrix, vector) {
-  const { rows, cols } = getShape(matrix);
-  validateVector(vector);
-  if (cols !== vector.length) {
-    throw new DimensionError("Matrix columns must match vector length", {
-      cols,
-      vectorLength: vector.length,
-    });
+    const n = values.length;
+    const data = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? values[i] : 0)));
+    return new Matrix(data);
   }
-  return createArray(rows, (row) => {
-    let sum = 0;
-    for (let col = 0; col < cols; col++) {
-      sum += matrix[row][col] * vector[col];
+
+  /* ----------------------------------- Utilidades básicas ----------------------------------- */
+
+  /** @returns {Matrix} copia independiente de esta matriz */
+  clone() {
+    return new Matrix(this.data);
+  }
+
+  /** @returns {boolean} true si rows === cols */
+  isSquare() {
+    return this.rows === this.cols;
+  }
+
+  /**
+   * @param {number} i - fila (0-indexada)
+   * @param {number} j - columna (0-indexada)
+   * @returns {number}
+   */
+  get(i, j) {
+    return this.data[i][j];
+  }
+
+  /**
+   * @param {number} i
+   * @param {number} j
+   * @param {number} value
+   */
+  set(i, j, value) {
+    this.data[i][j] = value;
+  }
+
+  /** @returns {number[][]} copia del contenido como arreglo 2D plano */
+  toArray() {
+    return this.data.map((row) => row.slice());
+  }
+
+  /**
+   * @param {Matrix} other
+   * @param {number} [tolerance=DEFAULT_TOLERANCE]
+   * @returns {boolean} true si ambas matrices tienen la misma forma y
+   *   todos sus elementos son iguales dentro de la tolerancia dada
+   */
+  equals(other, tolerance = DEFAULT_TOLERANCE) {
+    if (!(other instanceof Matrix) || this.rows !== other.rows || this.cols !== other.cols) return false;
+    for (let i = 0; i < this.rows; i++)
+      for (let j = 0; j < this.cols; j++)
+        if (Math.abs(this.data[i][j] - other.data[i][j]) > tolerance) return false;
+    return true;
+  }
+
+  /**
+   * Extrae el menor complementario: la submatriz que resulta de eliminar
+   * la fila i y la columna j. Usado por determinant.js (cofactores) e
+   * inverse.js (adjunta/cofactores) para no reimplementar esta operación
+   * en cada archivo.
+   * @param {number} i - fila a eliminar (0-indexada)
+   * @param {number} j - columna a eliminar (0-indexada)
+   * @returns {Matrix}
+   * @throws {DimensionError} si la matriz no es cuadrada
+   * @example
+   * new Matrix([[1,2,3],[4,5,6],[7,8,9]]).minor(0, 0);
+   * // Matrix [[5,6],[8,9]]
+   */
+  minor(i, j) {
+    assertSquareMatrix(this, 'this');
+    const data = [];
+    for (let r = 0; r < this.rows; r++) {
+      if (r === i) continue;
+      const row = [];
+      for (let c = 0; c < this.cols; c++) {
+        if (c === j) continue;
+        row.push(this.data[r][c]);
+      }
+      data.push(row);
     }
-    return cleanNumber(sum);
-  });
-}
-
-/**
- * Returns the trace of a square matrix.
- *
- * @param {number[][]} matrix Square matrix.
- * @returns {number} Matrix trace.
- *
- * @example
- * trace([[1, 2], [3, 4]]); // 5
- */
-export function trace(matrix) {
-  validateSquareMatrix(matrix);
-  let sum = 0;
-  for (let index = 0; index < matrix.length; index++) {
-    sum += matrix[index][index];
+    return new Matrix(data);
   }
-  return cleanNumber(sum);
-}
 
-/**
- * Builds the minor matrix that excludes one row and one column.
- *
- * @param {number[][]} matrix Matrix data.
- * @param {number} rowToRemove Row index to remove.
- * @param {number} colToRemove Column index to remove.
- * @returns {number[][]} Minor matrix.
- *
- * @example
- * minor([[1, 2], [3, 4]], 0, 0); // [[4]]
- */
-export function minor(matrix, rowToRemove, colToRemove) {
-  validateMatrixIndex(matrix, rowToRemove, colToRemove);
-  const result = [];
-  for (let row = 0; row < matrix.length; row++) {
-    if (row === rowToRemove) continue;
-    const values = [];
-    for (let col = 0; col < matrix[row].length; col++) {
-      if (col !== colToRemove) values.push(matrix[row][col]);
+  /* --------------------------------------- Aritmética --------------------------------------- */
+
+  /**
+   * @param {Matrix} other
+   * @returns {Matrix}
+   * @throws {DimensionError}
+   * @example
+   * new Matrix([[1,2]]).add(new Matrix([[3,4]])); // [[4,6]]
+   */
+  add(other) {
+    assertSameDimensions(this, other, 'A', 'B');
+    const data = this.data.map((row, i) => row.map((v, j) => v + other.data[i][j]));
+    return new Matrix(data);
+  }
+
+  /**
+   * @param {Matrix} other
+   * @returns {Matrix}
+   * @throws {DimensionError}
+   */
+  subtract(other) {
+    assertSameDimensions(this, other, 'A', 'B');
+    const data = this.data.map((row, i) => row.map((v, j) => v - other.data[i][j]));
+    return new Matrix(data);
+  }
+
+  /**
+   * @param {number} k
+   * @returns {Matrix}
+   * @example
+   * new Matrix([[1,2],[3,4]]).scalarMultiply(2); // [[2,4],[6,8]]
+   */
+  scalarMultiply(k) {
+    if (typeof k !== 'number' || !Number.isFinite(k)) {
+      throw new MathError('scalarMultiply requiere un escalar numérico finito.', 'NOT_FINITE', { k });
     }
-    if (values.length > 0) result.push(values);
+    return new Matrix(this.data.map((row) => row.map((v) => v * k)));
   }
-  return result;
-}
 
-/**
- * Checks whether a matrix is square.
- *
- * @param {number[][]} matrix Matrix data.
- * @returns {boolean} True when row count equals column count.
- *
- * @example
- * isSquare([[1, 2], [3, 4]]); // true
- */
-export function isSquare(matrix) {
-  const { rows, cols } = getShape(matrix);
-  return rows === cols;
-}
-
-/**
- * Checks whether a matrix is symmetric.
- *
- * @param {number[][]} matrix Matrix data.
- * @param {number} [tolerance=1e-10] Numeric tolerance.
- * @returns {boolean} True when A equals A transposed within tolerance.
- *
- * @example
- * isSymmetric([[1, 2], [2, 1]]);
- */
-export function isSymmetric(matrix, tolerance = 1e-10) {
-  validateSquareMatrix(matrix);
-  for (let row = 0; row < matrix.length; row++) {
-    for (let col = row + 1; col < matrix.length; col++) {
-      if (Math.abs(matrix[row][col] - matrix[col][row]) > tolerance) {
-        return false;
+  /**
+   * @param {Matrix} other
+   * @returns {Matrix}
+   * @throws {DimensionError} si this.cols !== other.rows
+   * @example
+   * new Matrix([[1,2],[3,4]]).multiply(Matrix.identity(2)); // igual a la original
+   */
+  multiply(other) {
+    assertMultipliable(this, other);
+    const result = Matrix.zeros(this.rows, other.cols);
+    for (let i = 0; i < this.rows; i++) {
+      for (let j = 0; j < other.cols; j++) {
+        let sum = 0;
+        for (let k = 0; k < this.cols; k++) sum += this.data[i][k] * other.data[k][j];
+        result.data[i][j] = sum;
       }
     }
+    return result;
   }
-  return true;
-}
 
-/**
- * Computes the Frobenius norm.
- *
- * @param {number[][]} matrix Matrix data.
- * @returns {number} Frobenius norm.
- *
- * @example
- * frobeniusNorm([[3, 4]]); // 5
- */
-export function frobeniusNorm(matrix) {
-  validateMatrix(matrix);
-  let sum = 0;
-  for (const row of matrix) {
-    for (const value of row) {
-      sum += value * value;
+  /** @returns {Matrix} transpuesta (Aᵀ) */
+  transpose() {
+    const data = Array.from({ length: this.cols }, (_, j) => Array.from({ length: this.rows }, (_, i) => this.data[i][j]));
+    return new Matrix(data);
+  }
+
+  /**
+   * @param {number} n - exponente entero no negativo
+   * @returns {Matrix} A elevada a la n mediante productos sucesivos
+   * @throws {DimensionError} si la matriz no es cuadrada
+   * @throws {MathError} si n no es entero no negativo
+   * @example
+   * new Matrix([[2,0],[0,2]]).power(3); // [[8,0],[0,8]]
+   */
+  power(n) {
+    assertSquareMatrix(this, 'this');
+    assertInteger(n, 'n');
+    assertNonNegative(n, 'n');
+    let result = Matrix.identity(this.rows);
+    for (let i = 0; i < n; i++) result = result.multiply(this);
+    return result;
+  }
+
+  /**
+   * @returns {number} suma de la diagonal principal
+   * @throws {DimensionError} si la matriz no es cuadrada
+   */
+  trace() {
+    assertSquareMatrix(this, 'this');
+    let sum = 0;
+    for (let i = 0; i < this.rows; i++) sum += this.data[i][i];
+    return sum;
+  }
+
+  /* ------------------------------- Propiedades estructurales ------------------------------- */
+
+  /** @param {number} [tolerance=DEFAULT_TOLERANCE] @returns {boolean} true si A === Aᵀ */
+  isSymmetric(tolerance = DEFAULT_TOLERANCE) {
+    if (!this.isSquare()) return false;
+    for (let i = 0; i < this.rows; i++)
+      for (let j = i + 1; j < this.cols; j++)
+        if (Math.abs(this.data[i][j] - this.data[j][i]) > tolerance) return false;
+    return true;
+  }
+
+  /** @param {number} [tolerance=DEFAULT_TOLERANCE] @returns {boolean} */
+  isDiagonal(tolerance = DEFAULT_TOLERANCE) {
+    if (!this.isSquare()) return false;
+    for (let i = 0; i < this.rows; i++)
+      for (let j = 0; j < this.cols; j++)
+        if (i !== j && Math.abs(this.data[i][j]) > tolerance) return false;
+    return true;
+  }
+
+  /** @param {number} [tolerance=DEFAULT_TOLERANCE] @returns {boolean} */
+  isUpperTriangular(tolerance = DEFAULT_TOLERANCE) {
+    if (!this.isSquare()) return false;
+    for (let i = 0; i < this.rows; i++)
+      for (let j = 0; j < i; j++)
+        if (Math.abs(this.data[i][j]) > tolerance) return false;
+    return true;
+  }
+
+  /** @param {number} [tolerance=DEFAULT_TOLERANCE] @returns {boolean} */
+  isLowerTriangular(tolerance = DEFAULT_TOLERANCE) {
+    if (!this.isSquare()) return false;
+    for (let i = 0; i < this.rows; i++)
+      for (let j = i + 1; j < this.cols; j++)
+        if (Math.abs(this.data[i][j]) > tolerance) return false;
+    return true;
+  }
+
+  /**
+   * @param {number} [tolerance=DEFAULT_TOLERANCE]
+   * @returns {boolean} true si es diagonal y todos los elementos de la diagonal son 1
+   */
+  isIdentity(tolerance = DEFAULT_TOLERANCE) {
+    if (!this.isDiagonal(tolerance)) return false;
+    for (let i = 0; i < this.rows; i++) if (Math.abs(this.data[i][i] - 1) > tolerance) return false;
+    return true;
+  }
+
+  /** @returns {number} norma de Frobenius: raíz de la suma de los cuadrados de todos los elementos */
+  frobeniusNorm() {
+    let sum = 0;
+    for (let i = 0; i < this.rows; i++) for (let j = 0; j < this.cols; j++) sum += this.data[i][j] * this.data[i][j];
+    return Math.sqrt(sum);
+  }
+
+  /** @returns {number} norma infinito: máxima suma absoluta de fila */
+  infinityNorm() {
+    let max = 0;
+    for (let i = 0; i < this.rows; i++) {
+      let sum = 0;
+      for (let j = 0; j < this.cols; j++) sum += Math.abs(this.data[i][j]);
+      max = Math.max(max, sum);
     }
+    return max;
   }
-  return Math.sqrt(sum);
 }
-
-export default Object.freeze({
-  createMatrix,
-  cloneMatrix,
-  fromArray,
-  zeros,
-  identity,
-  transpose,
-  addMatrices,
-  subtractMatrices,
-  scaleMatrix,
-  multiplyMatrices,
-  multiplyMatrixVector,
-  trace,
-  minor,
-  isSquare,
-  isSymmetric,
-  frobeniusNorm,
-});
