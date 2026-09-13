@@ -27,6 +27,9 @@ Antes de responder nada, leé en este orden:
 
 [BLOQUE DE ROL]
 
+Al cerrar la sesión vas a escribir vos mismo tu entrada en la bitácora del
+HANDOFF, respetando el reparto por sección de CHAT_ROLES.md §6.
+
 Confirmame qué rol asumís, qué rutas podés tocar y cuáles no, y cuál es la
 tarea que sigue según el HANDOFF. Recién después empezamos.
 ```
@@ -204,8 +207,23 @@ vectors.dot([1,2,3],[4,5,6])=32, y exporta 92 símbolos públicos.
 
 ## Al cerrar cada sesión
 
-Pedile al chat el Informe de la Fase 7 de `WORKFLOW.md` (Resumen /
-Arquitectura / Compatibilidad / Próximos pasos) y pegalo en la bitácora de
-`docs/HANDOFF.md`. Actualizá también las secciones 1, 3 y 4 si cambiaron.
+Desde `CHAT_ROLES.md` 1.1, **el chat escribe su propia entrada** en la bitácora
+de `docs/HANDOFF.md`: el Informe de la Fase 7 de `WORKFLOW.md` (Resumen /
+Arquitectura / Compatibilidad / Próximos pasos), con el formato
+`### AAAA-MM-DD — Título · Chat N`.
+
+Pedíselo con esto:
+
+```
+Cerrá la sesión: escribí tu entrada de bitácora en docs/HANDOFF.md siguiendo el
+reparto por sección de CHAT_ROLES.md §6. Actualizá tu fila en §1 y §3, agregá a
+§5 la deuda que hayas detectado, y la fecha del encabezado.
+
+Si encontraste algo que cambia el orden del plan, no lo reordenes: escribilo
+como propuesta y decímelo, que lo resuelve el Chat 1.
+```
+
+Lo que el chat **no** hace solo: tocar §2 (decisiones), reordenar §4, ni editar
+la entrada de otro chat. Eso te queda a vos o al Chat 1.
 
 Sin ese paso, el próximo chat arranca con información vieja.
