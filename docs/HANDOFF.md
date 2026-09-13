@@ -3,7 +3,7 @@
 **Fuente de verdad operativa del proyecto.** Todo chat lo lee al empezar. El
 responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 
-Última actualización: **2026-09-14**
+Última actualización: **2026-09-13**
 
 - **Repositorio:** https://github.com/65bcwy86r4-web/CalculadorasIngenieria
 - **Publicado en:** https://65bcwy86r4-web.github.io/CalculadorasIngenieria/
@@ -42,7 +42,7 @@ principal.
 | [ADR-004](adr/ADR-004-correccion-autovalores.md) | H-03 se corrige portando Jacobi y el 2×2 analítico desde `legacy/`, no parcheando el QR. `eigen.js` se toca una sola vez. | 2026-09-13 |
 | [ADR-005](adr/ADR-005-api-de-autovalores.md) | `eigenvalues` es la entrada que despacha; `eigenvaluesQR` vuelve a ser el QR explícito. Cada nombre dice su método. | 2026-09-13 |
 | [ADR-006](adr/ADR-006-interfaz-antes-que-port.md) | La calculadora de álgebra (Paso 3) va antes que el resto del port. Una capacidad del motor se escribe cuando una calculadora la pide. | 2026-09-13 |
-| [ADR-007](adr/ADR-007-contrato-de-steps.md) | Contrato único de `steps`: forma del paso, vocabulario cerrado de `type`, y `type`+`text` como mínimo suficiente para renderizar. Se congela la forma antes de llenar el contenido. **Enmendado el 2026-09-14** (§3.3, D16). | 2026-09-13 |
+| [ADR-007](adr/ADR-007-contrato-de-steps.md) | Contrato único de `steps`: forma del paso, vocabulario cerrado de `type`, y `type`+`text` como mínimo suficiente para renderizar. Se congela la forma antes de llenar el contenido. **Enmendado el 2026-09-13** (§3.3, D16). | 2026-09-13 |
 
 ---
 
@@ -206,7 +206,7 @@ más trabajo.
 | D9 | `cubicSplineInterpolate` tiene 54 líneas de código efectivas, por encima del máximo de 50 de `AI_RULES.md` §10, sin la justificación técnica que ese artículo exige | `shared/math/interpolation/spline.js` | Baja |
 | ~~D10~~ | ~~`eigenvaluesQR` ya no siempre usa QR~~ | `shared/math/`, `docs/API.md` | **Resuelta el 2026-09-13** (Paso 2a, según ADR-005) |
 | ~~D12~~ | ~~Falta `hPa` en el catálogo de presión~~ | `shared/math/units/pressure.js` | **Resuelta el 2026-09-13** (Paso 2a) |
-| ~~D16~~ | ~~`unique`/`infinite`/`incompatible` en el vocabulario de pasos~~ | — | **Resuelta el 2026-09-14.** El Chat 2 tenía razón: era un error de relevamiento del ADR-007. Corregido por la enmienda de ADR-007 §3.3; las dos consecuencias van al Paso 2c-2 |
+| ~~D16~~ | ~~`unique`/`infinite`/`incompatible` en el vocabulario de pasos~~ | — | **Resuelta el 2026-09-13.** El Chat 2 tenía razón: era un error de relevamiento del ADR-007. Corregido por la enmienda de ADR-007 §3.3; las dos consecuencias van al Paso 2c-2 |
 | D13 | El camino QR general sigue sin desplazamientos de Wilkinson: no converge con autovalores de igual módulo. Con ADR-005 dejó de ser un defecto oculto —`eigenvalues` no lo usa para simétricas y `eigenvaluesQR` lo anuncia, con una prueba que lo fija como comportamiento esperado— pero sigue siendo el más débil de los tres métodos | `shared/math/algebra/eigen.js` | Baja |
 | ~~D14~~ | ~~`eigen.js` cerca del máximo de 500 líneas de `AI_RULES.md` §10~~ | `shared/math/algebra/` | **Resuelta el 2026-09-13** (Paso 2c-1, división por método de ADR-007 §3.5) |
 | D15 | **Resuelto por [ADR-007](adr/ADR-007-contrato-de-steps.md) el 2026-09-13**; se ejecuta en los Pasos 2c-1 y 2c-2. El contrato de `steps` no es uniforme: 7 funciones de álgebra devuelven `{type, text, snapshot}`, `luDecomposition` devuelve `{type, text}` sin `snapshot`, y 9 no devuelven `steps` (`determinantByCofactors`, `adjugate`, `cofactorMatrix`, `qrDecomposition`, `choleskyDecomposition`, `eigenvalues`, `eigenvectors`, `diagonalize`, `conditionNumber`). Además el dato principal se llama distinto en cada una (`value`, `result`, `inverse`, `rank`, `solution`, `values`, `L/U/P`...). La V1 mostraba el procedimiento de las 25 operaciones; con esto la Versión 3a no puede igualarla en 9. Detectado en el relevamiento previo al Paso 3 | `shared/math/algebra/`, `docs/API.md` | **Media — la forma está congelada (Paso 2c-1, 2026-09-13); falta el contenido (Paso 2c-2)** |

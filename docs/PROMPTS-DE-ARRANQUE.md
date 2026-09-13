@@ -75,7 +75,7 @@ funciones que hoy devuelven `steps: []`. La forma ya está congelada por el Paso
 2c-1, así que no cambia ningún retorno: solo se llenan los pasos.
 
 Leé docs/adr/ADR-007-contrato-de-steps.md entero, **incluida la enmienda del
-2026-09-14 en §3.3**, que salió de la consulta que dejaste como D16. Tenías
+2026-09-13 en §3.3**, que salió de la consulta que dejaste como D16. Tenías
 razón: `unique`, `infinite` e `incompatible` nunca fueron tipos de paso, eran el
 discriminante del retorno de solveSystem. El error era del ADR, no tuyo.
 

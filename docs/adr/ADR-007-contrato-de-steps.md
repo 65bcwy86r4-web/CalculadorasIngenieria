@@ -1,7 +1,7 @@
 # ADR-007 — Contrato de `steps`: forma de retorno del procedimiento
 
 - **Fecha:** 2026-09-13
-- **Estado:** Aceptado, con la enmienda del 2026-09-14 en §3.3
+- **Estado:** Aceptado, con la enmienda del 2026-09-13 en §3.3
 - **Decide:** responsable del proyecto
 - **Relacionado:** HANDOFF D15, D14, D16, ADR-006 (interfaz antes que port)
 
@@ -122,7 +122,7 @@ fuera de esta lista es un error de contrato.
 |---|---|
 | `final` | Resultado final |
 
-> ### Enmienda del 2026-09-14 — corrección de §3.3
+> ### Enmienda del 2026-09-13 — corrección de §3.3
 >
 > La versión original de esta tabla incluía `unique`, `infinite` e
 > `incompatible` como tipos de paso, afirmando que "ya están en uso en
