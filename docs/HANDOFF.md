@@ -21,7 +21,7 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 | Motor `shared/math/` | Completo y documentado. 35 archivos. Cubierto por la suite. **Sin hallazgos abiertos** (H-01 a H-05 cerrados el 2026-09-13). | 2 |
 | `docs/` técnica | Architecture, API, Algorithms, Roadmap completos | 1 / 2 |
 | `docs/governance/` | 4 documentos rectores, versión 1.0 | 1 |
-| `tests/` | **281 pruebas en 16 archivos, todas pasan.** Paso 1 cerrado. | 5 |
+| `tests/` | **298 pruebas en 16 archivos, todas pasan.** Paso 1 y 1b cerrados. | 5 |
 | `modules/` | **Vacío.** Ninguna calculadora consume el motor todavía. | 3 |
 | `css/`, `assets/`, `js/` | Vacíos | 4 / 3 |
 | `legacy/` | Congelado. No se importa desde ningún lado. | — |
@@ -40,6 +40,8 @@ principal.
 | [ADR-002](adr/ADR-002-ejecucion-esm.md) | ES Modules servidos por HTTP (servidor local + GitHub Pages). Se abandona la compatibilidad con `file://`. | 2026-09-12 |
 | [ADR-003](adr/ADR-003-organizacion-chats.md) | El trabajo se reparte en 5 chats por capa arquitectónica. | 2026-09-12 |
 | [ADR-004](adr/ADR-004-correccion-autovalores.md) | H-03 se corrige portando Jacobi y el 2×2 analítico desde `legacy/`, no parcheando el QR. `eigen.js` se toca una sola vez. | 2026-09-13 |
+| [ADR-005](adr/ADR-005-api-de-autovalores.md) | `eigenvalues` es la entrada que despacha; `eigenvaluesQR` vuelve a ser el QR explícito. Cada nombre dice su método. | 2026-09-13 |
+| [ADR-006](adr/ADR-006-interfaz-antes-que-port.md) | La calculadora de álgebra (Paso 3) va antes que el resto del port. Una capacidad del motor se escribe cuando una calculadora la pide. | 2026-09-13 |
 
 ---
 
@@ -50,10 +52,8 @@ principal.
 | 2 | Paso 1b: corregir H-01 a H-05, con H-03 resuelto según ADR-004 | **Cerrado el 2026-09-13** |
 | — | — | Ninguna otra sesión abierta |
 
-**Pendiente del responsable del proyecto:** la suite del Paso 1 está en la
-carpeta local pero **todavía no se subió al repositorio**. Hay que commitearla
-en `develop` antes de que el Chat 2 empiece, porque es la red que protege su
-trabajo.
+Todo lo anterior está commiteado y subido a `develop`. El siguiente es el
+**Paso 2a** (Chat 2, sesión corta) y después el **Paso 3** (Chat 3 + 4).
 
 ---
 
@@ -96,19 +96,27 @@ verificación correcta quedó en `algebra-eigen.test.js`, `physics.test.js`,
 port va a tocar igual, y porque H-04 es un resultado silenciosamente
 incorrecto en un caso de uso central de la carrera.*
 
-### Paso 2 — Port de capacidades desde el motor v1 · Chat 2
+### Paso 2a — Refactores de nombres · Chat 2 · **siguiente**
 
-Portar al motor canónico lo que se identificó como pérdida real en ADR-001.
-La checklist completa, con prioridades, está en ese ADR §5. Al cerrarlo se
-elimina `legacy/motor-v1/`.
+Sesión corta, sin capacidades nuevas. Tres cosas que hay que hacer **antes** de
+que exista un consumidor del motor, porque después cuestan mucho más
+([ADR-006](adr/ADR-006-interfaz-antes-que-port.md) §3):
 
-Los dos ítems de autovalores (`jacobiEigenDecomposition` y `eigenvalues2x2`) se
-adelantan al Paso 1b por ADR-004. Lo que queda acá —mínimos cuadrados por QR,
-spline reutilizable, `solveLU`, `solveCholesky`, `numericalDerivative`,
-coeficientes de Lagrange y el grupo de prioridad baja— es independiente entre sí
-y se puede repartir en varias sesiones.
+1. **API de autovalores**, según [ADR-005](adr/ADR-005-api-de-autovalores.md):
+   `eigenvalues` pasa a ser la entrada que despacha y `eigenvaluesQR` vuelve a
+   ser el QR explícito. Arrastra una línea en `physics/tensors.js`, la
+   reescritura de las pruebas de despacho y la actualización de `API.md` y
+   `Algorithms.md`.
+2. **D3**: renombrar los cuatro archivos de `shared/math/errors/` a kebab-case
+   (`math-error.js`, `dimension-error.js`, `singular-matrix-error.js`,
+   `interpolation-error.js`), cumpliendo `CODING_STANDARDS.md` §2 tal como está
+   escrito, y actualizar todos los imports.
+3. **D12**: agregar `hPa` al catálogo de `units/pressure.js`.
 
-### Paso 3 — Versión 3a: calculadora de álgebra sobre el motor · Chat 3 + 4
+Son refactores puros con las 298 pruebas como red: al terminar tienen que seguir
+pasando todas, menos las que se reescriban a propósito por ADR-005.
+
+### Paso 3 — Versión 3a: calculadora de álgebra sobre el motor · Chat 3 + 4 · **después del 2a**
 
 Reescribir la calculadora de álgebra en `modules/algebra/`, importando
 exclusivamente desde `shared/math/index.js`. Es la prueba de fuego de la API
@@ -118,6 +126,14 @@ algo quedó mal cubierto en la Versión 2 (`Roadmap.md`, Versión 3).
 Referencia funcional: `legacy/calculadora-algebra-v1/` (25 operaciones,
 procedimiento paso a paso, historial, exportación, pegado desde planilla,
 atajos de teclado). Es referencia de **qué** hace, no de **cómo** está escrito.
+
+### Paso 2b — El resto del port desde el motor v1 · Chat 2
+
+Lo que quedó de ADR-001 §5 —mínimos cuadrados por QR, spline reutilizable,
+`solveLU`, `solveCholesky`, `numericalDerivative` (que cierra D4), coeficientes
+de Lagrange y el grupo de prioridad baja—, **cuando una calculadora lo
+necesite**, no por completitud (ADR-006). Al cerrarlo se elimina
+`legacy/motor-v1/` y se cierra D2.
 
 ### Paso 4 — Versión 3b: dashboard, routing, historial, favoritos · Chat 3 + 4
 
@@ -136,14 +152,16 @@ más trabajo.
 |---|---|---|---|
 | ~~D1~~ | ~~No hay suite de pruebas en el repo~~ | `tests/` | **Resuelta el 2026-09-13** |
 | D2 | Capacidades del motor v1 aún no portadas. **Los dos ítems de autovalores de prioridad alta —`jacobiEigenDecomposition` y `eigenvalues2x2`— se portaron el 2026-09-13**; queda el resto de ADR-001 §5 | ADR-001 §5 | Media |
-| D3 | `CODING_STANDARDS.md` §2 exige nombres de archivo en kebab-case; el motor usa `MathError.js`, `DimensionError.js` (PascalCase) | Estándar vs. `shared/math/errors/` | Media — decidir en Chat 1 |
+| D3 | `CODING_STANDARDS.md` §2 exige nombres de archivo en kebab-case; el motor usa `MathError.js`, `DimensionError.js` (PascalCase). **Decidido el 2026-09-13: se cumple el estándar, se renombran los archivos.** Se ejecuta en el Paso 2a | `shared/math/errors/` | Media — en curso |
 | D4 | `DEFAULT_DERIVATIVE_STEP` se exporta desde `utils/constants.js` pero no existe una `numericalDerivative` pública que la use; hoy la derivada numérica está embebida en `newton.js` | `shared/math/` | Media |
 | D5 | Aritmética compleja ausente: bloquea análisis de circuitos de corriente alterna y autovalores complejos | `Roadmap.md`, Versión 5 | Baja — planificada |
 | ~~D6~~ | ~~Sin repositorio git inicializado~~ | — | **Resuelta el 2026-09-13** |
 | ~~D7~~ | ~~`vincular-github.ps1` y `VINCULAR-GITHUB.bat` en la raíz~~ | — | **Resuelta el 2026-09-13** (commit `52dcf14`) |
 | D8 | Los ejemplos de `toScientific` y `formatNumber` en `docs/API.md` contradicen el comportamiento real y el nombre del propio parámetro `significantDigits`. El código está bien; la documentación, no | `docs/API.md` | Baja — Chat 2 |
 | D9 | `cubicSplineInterpolate` tiene 54 líneas de código efectivas, por encima del máximo de 50 de `AI_RULES.md` §10, sin la justificación técnica que ese artículo exige | `shared/math/interpolation/spline.js` | Baja |
-| D10 | `eigenvaluesQR` ya no siempre usa QR: desde ADR-004 despacha a Jacobi o a la forma cerrada 2×2 según el tipo de matriz. El nombre quedó mintiendo. Renombrar a `eigenvalues` dejando `eigenvaluesQR` como alias es cambio de API pública y no corresponde al Chat 2 decidirlo | `shared/math/index.js`, `docs/API.md` | Media — decidir en Chat 1 |
+| D10 | `eigenvaluesQR` ya no siempre usa QR. **Resuelto por [ADR-005](adr/ADR-005-api-de-autovalores.md) el 2026-09-13**: `eigenvalues` despacha, `eigenvaluesQR` vuelve a ser QR explícito. Se ejecuta en el Paso 2a | `shared/math/`, `docs/API.md` | Media — en curso |
+| D12 | Falta `hPa` en el catálogo de presión. Está `mbar`, que es numéricamente idéntico, pero la aeronáutica usa hectopascales (el QNH se reporta en hPa) y la calculadora ISA es el Paso 5. Es un alias de una línea | `shared/math/units/pressure.js` | Media — en el Paso 2a |
+| D13 | El camino QR general sigue sin desplazamientos de Wilkinson: no converge con autovalores de igual módulo. Con ADR-005 deja de ser un defecto oculto —`eigenvalues` no lo usa para simétricas y `eigenvaluesQR` lo anuncia—, pero sigue siendo el más débil de los tres métodos | `shared/math/algebra/eigen.js` | Baja |
 | D11 | `known-defects.test.js` quedó vacío (0 pruebas, el archivo con su explicación intacta) para que el próximo hallazgo tenga dónde anotarse. Si el Chat 5 prefiere borrarlo y recrearlo cuando haga falta, hay que sacarlo también de la estructura de `tests/README.md`, que es su zona | `tests/math/`, `tests/README.md` | Baja — decidir en Chat 5 |
 
 ---

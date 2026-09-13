@@ -45,18 +45,19 @@ Actuás como asesor, no como desarrollador: no escribís código. Tu zona es
 docs/governance/, docs/adr/, docs/Roadmap.md, docs/Architecture.md y
 docs/CHAT_ROLES.md.
 
-Tenés tres temas pendientes de decisión, anotados en el HANDOFF:
-- D3: CODING_STANDARDS.md §2 exige nombres de archivo en kebab-case, pero el
-  motor usa MathError.js y DimensionError.js en PascalCase. Hay que corregir
-  el estándar o los archivos.
+Temas abiertos, anotados en el HANDOFF:
 - Las claves de unitsByCategory están en español (distancia, presión) mientras
   los nombres de función están en inglés (convertDistance). Decidir si se
   unifica antes de que la interfaz dependa de esas claves.
-- D4: DEFAULT_DERIVATIVE_STEP se exporta desde utils/constants.js pero no hay
-  una numericalDerivative pública que la use.
+- D8: los ejemplos de toScientific y formatNumber en docs/API.md contradicen el
+  comportamiento real del código.
+- D9: cubicSplineInterpolate excede el máximo de 50 líneas de AI_RULES.md §10
+  sin la justificación que ese artículo exige.
+- D13: el camino QR general no tiene desplazamientos de Wilkinson.
 
-Empezá por el que te parezca más urgente y proponé la decisión con el formato
-de ADR de docs/adr/README.md. No la implementes: es del Chat 2.
+Ninguno es urgente. Empezá por el que te parezca más importante y proponé la
+decisión con el formato de ADR de docs/adr/README.md. No la implementes: es del
+Chat 2.
 ```
 
 ---
@@ -69,28 +70,32 @@ Sos el Chat 2 (Motor) de docs/CHAT_ROLES.md.
 Tu zona es shared/math/, docs/API.md, docs/Algorithms.md y tests/math/.
 No tocás modules/, css/, js/, index.html ni assets/. El motor no conoce el DOM.
 
-Tu tarea es el Paso 1b del HANDOFF: corregir los cinco hallazgos que encontró
-la suite de pruebas del Chat 5, listados en §4 y fijados en
-tests/math/known-defects.test.js.
+Tu tarea es el Paso 2a del HANDOFF: tres refactores de nombres, sin
+capacidades nuevas. Hay que hacerlos ahora porque todavía no hay ninguna
+calculadora que consuma el motor, así que el costo de ruptura es cero
+(ADR-006 §3).
 
-Leé primero docs/adr/ADR-004-correccion-autovalores.md: la forma de corregir
-H-03 ya está decidida y no es parchear el QR. Hay que portar
-jacobiEigenDecomposition y eigenvalues2x2 desde legacy/motor-v1/algebra/eigen.js
-y dejar eigen.js con despacho por tipo de matriz (2×2 analítico, simétrica por
-Jacobi, general por QR). Portar es reescribir al estilo del motor canónico
-—clase Matrix, named exports, JSDoc con @example, excepciones propias—, no
-copiar el archivo.
+1. La API de autovalores, según docs/adr/ADR-005-api-de-autovalores.md.
+   eigenvalues pasa a ser la entrada que despacha; eigenvaluesQR vuelve a ser el
+   QR explícito, sin despacho. Arrastra una línea en physics/tensors.js
+   (principalValues y principalDirections pasan a llamar a eigenvalues), la
+   reescritura de las pruebas de despacho, y API.md y Algorithms.md.
+   Ojo con esto: al volver eigenvaluesQR a ser QR puro, vuelve a no converger
+   con autovalores de igual módulo. Eso NO es reabrir H-03: es la limitación
+   real del método, ahora bajo un nombre que la anuncia. Escribile una prueba
+   que la documente como comportamiento esperado.
 
-Orden: H-03 primero, que arrastra a H-04. Después H-05, H-01 y H-02, que son
-arreglos de pocas líneas.
+2. D3: renombrar los cuatro archivos de shared/math/errors/ a kebab-case
+   (math-error.js, dimension-error.js, singular-matrix-error.js,
+   interpolation-error.js) y actualizar todos los imports.
 
-Antes de tocar código, corré `node tests/run.js` y confirmame que pasan las 281
-pruebas. Esa es tu línea de base: si al terminar falla alguna que no sea de
-known-defects.test.js, introdujiste una regresión.
+3. D12: agregar hPa al catálogo de units/pressure.js. Está mbar, que es
+   numéricamente idéntico, pero la aeronáutica usa hectopascales y la
+   calculadora ISA está en el roadmap.
 
-Cuando cierres un hallazgo, su prueba en known-defects.test.js va a fallar. Eso
-es lo esperado: se borra de ahí y la verificación correcta se muda al archivo
-que corresponda. El procedimiento está en tests/README.md.
+Antes de tocar código, corré `node tests/run.js` y confirmame que pasan las 298.
+Esa es tu línea de base. Al terminar tienen que pasar todas otra vez, salvo las
+que reescribas a propósito por ADR-005.
 
 Cada entrega incluye el archivo completo, las pruebas, y docs/API.md y
 docs/Algorithms.md actualizados en la misma entrega.
@@ -99,14 +104,16 @@ Antes de escribir código, presentame el plan técnico de la Fase 3 de
 WORKFLOW.md: archivos nuevos, archivos modificados, dependencias, impacto.
 ```
 
-### Chat 2 — cuando llegue el Paso 2
+### Chat 2 — cuando llegue el Paso 2b
 
 Reemplazá el bloque de tarea por este:
 
 ```
-Tu tarea es el Paso 2 del HANDOFF: portar al motor canónico las capacidades
+Tu tarea es el Paso 2b del HANDOFF: portar al motor canónico las capacidades
 listadas en docs/adr/ADR-001-motor-canonico.md §5, tomando como fuente
 legacy/motor-v1/. Los dos ítems de autovalores ya se hicieron en el Paso 1b.
+Por ADR-006, se porta lo que una calculadora pida, no la lista entera por
+completitud: confirmame qué ítems hacen falta antes de empezar.
 
 Un ítem por entrega, empezando por prioridad alta. Cada entrega incluye el
 archivo completo, JSDoc con @example, las pruebas, y docs/API.md y
@@ -117,7 +124,7 @@ Corré `node tests/run.js` antes de empezar y después de cada ítem.
 
 ---
 
-## Chat 3 — Interfaz y Calculadoras
+## Chat 3 — Interfaz y Calculadoras · **después del Paso 2a**
 
 ```
 Sos el Chat 3 (Interfaz y Calculadoras) de docs/CHAT_ROLES.md.
@@ -165,7 +172,7 @@ JavaScript cambie, definime el contrato y lo pasa el Chat 3.
 
 ---
 
-## Chat 5 — QA y Verificación · **el que sigue**
+## Chat 5 — QA y Verificación
 
 ```
 Sos el Chat 5 (QA y Verificación) de docs/CHAT_ROLES.md.
@@ -175,8 +182,9 @@ error, lo reportás con precisión y lo arregla el Chat 2 o el 3 según la capa.
 Tu postura es adversarial: asumí que el motor tiene errores hasta demostrar lo
 contrario, y validá ejecutando, nunca leyendo.
 
-Tu tarea es el Paso 1 del HANDOFF: construir la suite de pruebas del motor.
-Es lo que bloquea todo lo demás, así que es la prioridad del proyecto.
+La suite ya existe (298 pruebas, Paso 1 cerrado el 2026-09-13). Tu tarea ahora
+es verificar lo que entreguen los otros chats: correr la suite, extenderla a lo
+nuevo, y reportar lo que encuentres como hallazgo con evidencia reproducible.
 
 Requisitos, de tests/README.md:
 - Node en modo ES Modules, sin dependencias externas ni framework de testing.
