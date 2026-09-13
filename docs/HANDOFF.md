@@ -3,7 +3,14 @@
 **Fuente de verdad operativa del proyecto.** Todo chat lo lee al empezar. El
 responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 
-Última actualización: **2026-09-12**
+Última actualización: **2026-09-13**
+
+- **Repositorio:** https://github.com/65bcwy86r4-web/CalculadorasIngenieria
+- **Publicado en:** https://65bcwy86r4-web.github.io/CalculadorasIngenieria/
+- **Carpeta local:** `Documents\Calculadoras Ingeniería`
+- **Ramas:** se trabaja en `develop`. `main` queda estable y es la rama desde la
+  que publica GitHub Pages: **el sitio no se actualiza hasta que `develop` se
+  fusiona en `main`.**
 
 ---
 
@@ -93,11 +100,37 @@ más trabajo.
 | D3 | `CODING_STANDARDS.md` §2 exige nombres de archivo en kebab-case; el motor usa `MathError.js`, `DimensionError.js` (PascalCase) | Estándar vs. `shared/math/errors/` | Media — decidir en Chat 1 |
 | D4 | `DEFAULT_DERIVATIVE_STEP` se exporta desde `utils/constants.js` pero no existe una `numericalDerivative` pública que la use; hoy la derivada numérica está embebida en `newton.js` | `shared/math/` | Media |
 | D5 | Aritmética compleja ausente: bloquea análisis de circuitos de corriente alterna y autovalores complejos | `Roadmap.md`, Versión 5 | Baja — planificada |
-| D6 | Sin repositorio git inicializado | raíz | Alta — trivial de resolver |
+| ~~D6~~ | ~~Sin repositorio git inicializado~~ | — | **Resuelta el 2026-09-13** |
+| D7 | `vincular-github.ps1` y `VINCULAR-GITHUB.bat` quedaron en la raíz. Cumplieron su función una sola vez y no son parte de la plataforma. | raíz | Baja — borrarlos en el próximo commit |
 
 ---
 
 ## 6. Bitácora
+
+### 2026-09-13 — Control de versiones y publicación
+
+**Resumen.** La carpeta local quedó vinculada al repositorio de GitHub que ya
+existía, conservando sus 6 commits previos. Se creó la rama `develop` y se
+publicó el sitio con GitHub Pages.
+
+**Arquitectura.** Ninguna decisión nueva. Se materializaron ADR-002 (ES Modules
+servidos por HTTP) y `ENGINEERING_GUIDE.md` §17 (flujo `main`/`develop`).
+
+**Verificación.**
+- Historial: 7 commits, los 6 originales intactos bajo el commit de
+  consolidación. 109 archivos versionados.
+- `main` y `develop` apuntan al mismo commit; `main` es la rama por defecto.
+- El motor importado desde el clon del repositorio remoto pasa las
+  comprobaciones en Node: determinante, inversa, conversión de unidades,
+  producto escalar, Newton-Raphson e interpolación lineal. 92 exportaciones.
+- Que Node en Linux resuelva todo el grafo de módulos desde `index.js` confirma
+  además que no hay diferencias de mayúsculas en las rutas de importación —
+  Windows no las detecta, GitHub Pages sí.
+- `shared/math/index.js` responde correctamente servido desde GitHub Pages.
+
+**Próximos pasos.** Paso 1: la suite de pruebas (Chat 5).
+
+---
 
 ### 2026-09-12 — Consolidación del repositorio (Paso 0)
 
