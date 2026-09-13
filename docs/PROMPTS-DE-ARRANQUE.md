@@ -66,18 +66,50 @@ Sos el Chat 2 (Motor) de docs/CHAT_ROLES.md.
 Tu zona es shared/math/, docs/API.md, docs/Algorithms.md y tests/math/.
 No tocás modules/, css/, js/, index.html ni assets/. El motor no conoce el DOM.
 
+Tu tarea es el Paso 1b del HANDOFF: corregir los cinco hallazgos que encontró
+la suite de pruebas del Chat 5, listados en §4 y fijados en
+tests/math/known-defects.test.js.
+
+Leé primero docs/adr/ADR-004-correccion-autovalores.md: la forma de corregir
+H-03 ya está decidida y no es parchear el QR. Hay que portar
+jacobiEigenDecomposition y eigenvalues2x2 desde legacy/motor-v1/algebra/eigen.js
+y dejar eigen.js con despacho por tipo de matriz (2×2 analítico, simétrica por
+Jacobi, general por QR). Portar es reescribir al estilo del motor canónico
+—clase Matrix, named exports, JSDoc con @example, excepciones propias—, no
+copiar el archivo.
+
+Orden: H-03 primero, que arrastra a H-04. Después H-05, H-01 y H-02, que son
+arreglos de pocas líneas.
+
+Antes de tocar código, corré `node tests/run.js` y confirmame que pasan las 281
+pruebas. Esa es tu línea de base: si al terminar falla alguna que no sea de
+known-defects.test.js, introdujiste una regresión.
+
+Cuando cierres un hallazgo, su prueba en known-defects.test.js va a fallar. Eso
+es lo esperado: se borra de ahí y la verificación correcta se muda al archivo
+que corresponda. El procedimiento está en tests/README.md.
+
+Cada entrega incluye el archivo completo, las pruebas, y docs/API.md y
+docs/Algorithms.md actualizados en la misma entrega.
+
+Antes de escribir código, presentame el plan técnico de la Fase 3 de
+WORKFLOW.md: archivos nuevos, archivos modificados, dependencias, impacto.
+```
+
+### Chat 2 — cuando llegue el Paso 2
+
+Reemplazá el bloque de tarea por este:
+
+```
 Tu tarea es el Paso 2 del HANDOFF: portar al motor canónico las capacidades
 listadas en docs/adr/ADR-001-motor-canonico.md §5, tomando como fuente
-legacy/motor-v1/.
+legacy/motor-v1/. Los dos ítems de autovalores ya se hicieron en el Paso 1b.
 
-IMPORTANTE: no arranques hasta que el Chat 5 haya terminado el Paso 1 (la
-suite de pruebas). Portar sin red de seguridad es exactamente lo que el ADR
-dice que hay que evitar. Si el HANDOFF todavía marca tests/ como vacío,
-decímelo y paramos acá.
+Un ítem por entrega, empezando por prioridad alta. Cada entrega incluye el
+archivo completo, JSDoc con @example, las pruebas, y docs/API.md y
+docs/Algorithms.md actualizados en la misma entrega.
 
-Cuando arranques: un ítem por entrega, empezando por prioridad alta. Cada
-entrega incluye el archivo completo, JSDoc con @example, las pruebas, y
-docs/API.md y docs/Algorithms.md actualizados en la misma entrega.
+Corré `node tests/run.js` antes de empezar y después de cada ítem.
 ```
 
 ---

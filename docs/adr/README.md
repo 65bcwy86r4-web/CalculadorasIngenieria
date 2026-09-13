@@ -50,3 +50,4 @@ directorio (`CHAT_ROLES.md` §4).
 | [001](ADR-001-motor-canonico.md) | Motor canónico y port de capacidades | Aceptado |
 | [002](ADR-002-ejecucion-esm.md) | ES Modules servidos por HTTP | Aceptado |
 | [003](ADR-003-organizacion-chats.md) | Organización del trabajo en chats por capa | Aceptado |
+| [004](ADR-004-correccion-autovalores.md) | Corregir los autovalores portando Jacobi, no parcheando el QR | Aceptado |
