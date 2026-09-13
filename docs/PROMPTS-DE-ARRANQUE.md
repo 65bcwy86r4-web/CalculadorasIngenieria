@@ -15,7 +15,7 @@ Todos los prompts empiezan igual. Lo que cambia es el bloque de rol.
 
 ```
 Trabajamos en el proyecto CalculadorasIngenieria.
-La carpeta está conectada: Documents\Calculadoras Ingeniería\CalculadorasIngenieria
+La carpeta está conectada: Documents\Calculadoras Ingeniería
 
 Antes de responder nada, leé en este orden:
 1. docs/governance/ENGINEERING_GUIDE.md
