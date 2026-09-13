@@ -117,9 +117,10 @@ export const tests = [
       // caminos sin nada en común hacia el mismo resultado. Se usa el
       // determinante por cofactores para que el segundo camino no comparta
       // tampoco el cálculo del determinante.
-      // Se excluye el caso 1x1: adjugate() se rompe ahí (hallazgo H-05,
-      // fijado en known-defects.test.js). Cuando se corrija, sacar el filtro.
-      INVERTIBLES.filter(({ matriz }) => matriz.rows > 1).forEach(({ nombre, matriz }) => {
+      // El caso 1x1 estaba excluido mientras adjugate() se rompía ahí
+      // (hallazgo H-05). Cerrado el 2026-09-13, entra al recorrido como
+      // cualquier otra matriz de la lista.
+      INVERTIBLES.forEach(({ nombre, matriz }) => {
         const det = determinantByCofactors(matriz);
         const porGaussJordan = inverse(matriz).inverse;
         const porAdjunta = adjugate(matriz).scalarMultiply(1 / det);

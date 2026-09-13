@@ -300,9 +300,34 @@ export const tests = [
         0,
         'Estado hidrostático: sin tensión equivalente.',
       );
-      // El caso de corte puro (σ_vm = √3·τ) NO se prueba acá: el motor lo
-      // calcula mal y devuelve 0. Está documentado como hallazgo H-03 en
-      // tests/math/known-defects.test.js, con la explicación de la causa.
+      // Corte puro: σ_vm = √3·τ. Era el hallazgo H-04 —devolvía 0, es decir
+      // "material sin solicitación"— y se cerró al corregir el cálculo de
+      // autovalores en algebra/eigen.js (ADR-004). Es el caso de un eje a
+      // torsión o un bulón trabajando al corte, así que se prueba con la
+      // fórmula de libro y no con un número copiado de la salida.
+      assertClose(
+        tensors.vonMisesStress(new Matrix([[0, 50], [50, 0]])),
+        Math.sqrt(3) * 50,
+        'Corte puro 2x2: √3·τ.',
+      );
+      assertClose(
+        tensors.vonMisesStress(new Matrix([[0, 50, 0], [50, 0, 0], [0, 0, 0]])),
+        Math.sqrt(3) * 50,
+        'Corte puro 3x3: el mismo estado de tensión da el mismo resultado.',
+      );
+    },
+  },
+  {
+    name: 'principalValues del tensor de corte puro son +τ, 0 y −τ',
+    fn: () => {
+      // La causa de H-04, verificada directamente: si estos tres valores
+      // vuelven a dar cero, vonMisesStress vuelve a mentir.
+      const principales = tensors.principalValues(
+        new Matrix([[0, 100, 0], [100, 0, 0], [0, 0, 0]]),
+      );
+      assertClose(principales[0], 100, 'Tensión principal máxima.', 1e-6);
+      assertClose(principales[1], 0, 'Tensión principal intermedia.', 1e-6);
+      assertClose(principales[2], -100, 'Tensión principal mínima.', 1e-6);
     },
   },
   {

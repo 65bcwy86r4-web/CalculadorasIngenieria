@@ -18,7 +18,7 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 
 | Componente | Estado | Chat responsable |
 |---|---|---|
-| Motor `shared/math/` | Completo y documentado. 35 archivos. Cubierto por la suite. 5 hallazgos abiertos. | 2 |
+| Motor `shared/math/` | Completo y documentado. 35 archivos. Cubierto por la suite. **Sin hallazgos abiertos** (H-01 a H-05 cerrados el 2026-09-13). | 2 |
 | `docs/` técnica | Architecture, API, Algorithms, Roadmap completos | 1 / 2 |
 | `docs/governance/` | 4 documentos rectores, versión 1.0 | 1 |
 | `tests/` | **281 pruebas en 16 archivos, todas pasan.** Paso 1 cerrado. | 5 |
@@ -47,7 +47,7 @@ principal.
 
 | Chat | Tarea | Estado |
 |---|---|---|
-| 2 | Paso 1b: corregir H-01 a H-05, con H-03 resuelto según ADR-004 | Listo para arrancar |
+| 2 | Paso 1b: corregir H-01 a H-05, con H-03 resuelto según ADR-004 | **Cerrado el 2026-09-13** |
 | — | — | Ninguna otra sesión abierta |
 
 **Pendiente del responsable del proyecto:** la suite del Paso 1 está en la
@@ -65,11 +65,13 @@ trabajo.
 desde ahora la compuerta de toda PR (`CODING_STANDARDS.md` §17). Detalle en la
 bitácora, §6.
 
-### Paso 1b — Corregir los hallazgos del motor · Chat 2 · **siguiente**
+### Paso 1b — Corregir los hallazgos del motor · Chat 2 · ~~siguiente~~ **cerrado el 2026-09-13**
 
-Cinco hallazgos abiertos, fijados y documentados en
-`tests/math/known-defects.test.js`. El orden importa: **H-03 arrastra a H-04**,
-así que corrigiendo autovalores se cierran los dos.
+Los cinco se cerraron. `known-defects.test.js` quedó vacío y la verificación
+correcta se mudó a los archivos que corresponden. Detalle en la bitácora, §6.
+
+**El Paso 2 pasa a ser el siguiente**, ya sin los dos ítems de autovalores de
+ADR-001 §5, que se adelantaron acá por ADR-004.
 
 **Cómo se corrige H-03 está decidido en [ADR-004](adr/ADR-004-correccion-autovalores.md):
 portando `jacobiEigenDecomposition` y `eigenvalues2x2` desde `legacy/motor-v1/`,
@@ -77,17 +79,18 @@ no parcheando el QR.** `eigen.js` queda con despacho por tipo de matriz —2×2
 analítico, simétrica por Jacobi, general por QR— y se toca una sola vez. Eso
 adelanta además dos ítems de prioridad alta de ADR-001 §5, que salen del Paso 2.
 
-| # | Qué | Dónde | Prioridad |
+| # | Qué | Dónde | Estado |
 |---|---|---|---|
-| H-03 | `eigenvaluesQR` devuelve `[0, 0]` y marca `hasComplexHint` en matrices simétricas con autovalores ±λ. La iteración QR sin desplazamiento no converge con autovalores de igual módulo | `shared/math/algebra/eigen.js` | **Alta** |
-| H-04 | `vonMisesStress` devuelve 0 en corte puro, donde corresponde √3·τ. Es H-03 propagado: un resultado equivocado que subestima la solicitación, sin excepción ni aviso | `shared/math/physics/tensors.js` (causa en `eigen.js`) | **Alta** |
-| H-05 | `cofactorMatrix` y `adjugate` lanzan `DimensionError` con una matriz 1×1; corresponde `[[1]]`. El caso base no está contemplado | `shared/math/algebra/inverse.js` | Media |
-| H-01 | Factor del nudo truncado: `0.514444444` en vez de `1852/3600` exacto (desvío 8.6e-10 relativo) | `shared/math/units/speed.js` | Baja |
-| H-02 | `mmHg` e `inHg` no son mutuamente consistentes: 1 inHg da 25.4000064 mmHg y debería dar 25.4 exactos | `shared/math/units/pressure.js` | Baja |
+| H-03 | `eigenvaluesQR` devuelve `[0, 0]` y marca `hasComplexHint` en matrices simétricas con autovalores ±λ. La iteración QR sin desplazamiento no converge con autovalores de igual módulo | `shared/math/algebra/eigen.js` | **Cerrado** |
+| H-04 | `vonMisesStress` devuelve 0 en corte puro, donde corresponde √3·τ. Es H-03 propagado: un resultado equivocado que subestima la solicitación, sin excepción ni aviso | `shared/math/physics/tensors.js` (causa en `eigen.js`) | **Cerrado** |
+| H-05 | `cofactorMatrix` y `adjugate` lanzan `DimensionError` con una matriz 1×1; corresponde `[[1]]`. El caso base no está contemplado | `shared/math/algebra/inverse.js` | **Cerrado** |
+| H-01 | Factor del nudo truncado: `0.514444444` en vez de `1852/3600` exacto (desvío 8.6e-10 relativo) | `shared/math/units/speed.js` | **Cerrado** |
+| H-02 | `mmHg` e `inHg` no son mutuamente consistentes: 1 inHg da 25.4000064 mmHg y debería dar 25.4 exactos | `shared/math/units/pressure.js` | **Cerrado** |
 
 Al cerrar cada hallazgo, la prueba correspondiente de `known-defects.test.js`
-va a fallar: eso **no** es una regresión, es la señal de que el hallazgo se
-cerró. El procedimiento está en `tests/README.md`.
+falló, que es la señal prevista. Las cuatro se borraron de ahí y la
+verificación correcta quedó en `algebra-eigen.test.js`, `physics.test.js`,
+`algebra-determinant.test.js` y `units.test.js`.
 
 *Se adelanta al port porque son cinco arreglos acotados sobre archivos que el
 port va a tocar igual, y porque H-04 es un resultado silenciosamente
@@ -132,7 +135,7 @@ más trabajo.
 | # | Tema | Dónde | Prioridad |
 |---|---|---|---|
 | ~~D1~~ | ~~No hay suite de pruebas en el repo~~ | `tests/` | **Resuelta el 2026-09-13** |
-| D2 | Capacidades del motor v1 aún no portadas | ADR-001 §5 | Alta |
+| D2 | Capacidades del motor v1 aún no portadas. **Los dos ítems de autovalores de prioridad alta —`jacobiEigenDecomposition` y `eigenvalues2x2`— se portaron el 2026-09-13**; queda el resto de ADR-001 §5 | ADR-001 §5 | Media |
 | D3 | `CODING_STANDARDS.md` §2 exige nombres de archivo en kebab-case; el motor usa `MathError.js`, `DimensionError.js` (PascalCase) | Estándar vs. `shared/math/errors/` | Media — decidir en Chat 1 |
 | D4 | `DEFAULT_DERIVATIVE_STEP` se exporta desde `utils/constants.js` pero no existe una `numericalDerivative` pública que la use; hoy la derivada numérica está embebida en `newton.js` | `shared/math/` | Media |
 | D5 | Aritmética compleja ausente: bloquea análisis de circuitos de corriente alterna y autovalores complejos | `Roadmap.md`, Versión 5 | Baja — planificada |
@@ -140,10 +143,108 @@ más trabajo.
 | ~~D7~~ | ~~`vincular-github.ps1` y `VINCULAR-GITHUB.bat` en la raíz~~ | — | **Resuelta el 2026-09-13** (commit `52dcf14`) |
 | D8 | Los ejemplos de `toScientific` y `formatNumber` en `docs/API.md` contradicen el comportamiento real y el nombre del propio parámetro `significantDigits`. El código está bien; la documentación, no | `docs/API.md` | Baja — Chat 2 |
 | D9 | `cubicSplineInterpolate` tiene 54 líneas de código efectivas, por encima del máximo de 50 de `AI_RULES.md` §10, sin la justificación técnica que ese artículo exige | `shared/math/interpolation/spline.js` | Baja |
+| D10 | `eigenvaluesQR` ya no siempre usa QR: desde ADR-004 despacha a Jacobi o a la forma cerrada 2×2 según el tipo de matriz. El nombre quedó mintiendo. Renombrar a `eigenvalues` dejando `eigenvaluesQR` como alias es cambio de API pública y no corresponde al Chat 2 decidirlo | `shared/math/index.js`, `docs/API.md` | Media — decidir en Chat 1 |
+| D11 | `known-defects.test.js` quedó vacío (0 pruebas, el archivo con su explicación intacta) para que el próximo hallazgo tenga dónde anotarse. Si el Chat 5 prefiere borrarlo y recrearlo cuando haga falta, hay que sacarlo también de la estructura de `tests/README.md`, que es su zona | `tests/math/`, `tests/README.md` | Baja — decidir en Chat 5 |
 
 ---
 
 ## 6. Bitácora
+
+### 2026-09-13 — Corrección de los cinco hallazgos del motor (Paso 1b) · Chat 2
+
+**Resumen.** Se cerraron los cinco hallazgos que la suite del Paso 1 encontró.
+H-03 se corrigió como manda ADR-004: portando `jacobiEigenDecomposition` y
+`eigenvalues2x2` desde `legacy/motor-v1/algebra/eigen.js` y dejando
+`shared/math/algebra/eigen.js` con despacho por tipo de matriz —1×1 trivial,
+simétrica por Jacobi, 2×2 no simétrica por forma cerrada, general por QR—, no
+parcheando el QR. El archivo se tocó una sola vez. H-04 se cerró solo:
+`vonMisesStress` pasó de devolver `0` a devolver `√3·τ` en corte puro sin que
+`physics/tensors.js` cambiara una línea, que es la confirmación de que la causa
+estaba donde el ADR decía. H-05 se resolvió con el caso base `n = 1` en
+`cofactorMatrix`; H-01 y H-02, reemplazando factores truncados por sus
+definiciones exactas.
+
+La suite pasó de **281 pruebas a 298, todas en verde**: 21 pruebas nuevas menos
+las 4 de `known-defects.test.js`, que se borraron al cerrarse lo que fijaban.
+
+**Arquitectura.** Cuatro decisiones, y una que deliberadamente no se tomó:
+
+1. *El despacho vive dentro de `eigenvaluesQR`, no en una función nueva.*
+   ADR-004 §3 dice que `eigenvaluesQR` se conserva como pública y "deja de ser
+   el único camino", pero H-03 estaba fijado sobre una llamada directa a esa
+   función y la contraprueba que dejó escrita el Chat 5 es que `hasComplexHint`
+   sea `false` para toda simétrica. Las dos cosas solo se cumplen si el despacho
+   está adentro. La alternativa —un `eigenvalues()` nuevo con `eigenvaluesQR`
+   como QR puro— dejaba H-03 y H-04 abiertos, o forzaba a cambiar el import de
+   `tensors.js`, que no es el archivo de arreglo que el ADR designa.
+   Consecuencia: el nombre `eigenvaluesQR` ya no describe lo que hace. Queda
+   anotado como D10; renombrarlo es cambio de API pública y lo decide el Chat 1.
+2. *`hasComplexHint` pasa de heurística a exacta en el caso 2×2.* Antes salía de
+   mirar si quedaba residuo en la subdiagonal después de 500 iteraciones, que es
+   lo que producía el falso positivo en simétricas. Ahora, para matrices
+   simétricas es `false` por el teorema espectral, y en las 2×2 no simétricas
+   sale del signo del discriminante del polinomio característico. Para el resto
+   sigue siendo la heurística de la subdiagonal, porque no hay con qué
+   reemplazarla mientras no exista aritmética compleja (D5).
+3. *El mmHg se define como el torr (`101325/760`), no como el valor convencional
+   `133.322387415`.* Las dos opciones son internamente consistentes y cierran
+   H-02; la elegida cierra además la identidad `1 atm = 760 mmHg` de forma
+   exacta, que es la que se verifica a mano. El inHg se deriva del mmHg
+   (`25.4 mmHg`) en vez de redondearse por separado: redondear los dos por
+   separado era precisamente la causa del hallazgo.
+4. *H-05 se resuelve en `inverse.js` y no en `Matrix.minor`.* `minor(0,0)` sobre
+   una 1×1 tendría que construir una `Matrix` de 0×0, que el constructor rechaza
+   con razón. El caso base pertenece a quien interpreta el menor, no a quien lo
+   extrae.
+
+Lo que **no** se hizo, estando a mano: agregar desplazamientos de Wilkinson al
+camino QR general. Habría sido cambiar el algoritmo más delicado del motor por
+fuera de lo que el ADR pidió, y el caso que motivaba el arreglo ya está cubierto
+por Jacobi (`WORKFLOW.md` Fase 4).
+
+**Compatibilidad.** La API pública no perdió ni renombró nada: se agregaron dos
+exports, `jacobiEigenDecomposition` y `eigenvalues2x2`, y pasó de 92 a 94
+nombres. `eigenvaluesQR` conserva firma y forma de retorno
+(`{ values, matrixT, hasComplexHint }`), así que ninguna calculadora futura tiene
+que cambiar. `api-surface.test.js` falló hasta que los dos nombres quedaron
+documentados en `docs/API.md`, que es exactamente para lo que el Chat 5 lo
+escribió. No se tocó `modules/`, `js/`, `css/`, `assets/`, `index.html` ni
+`legacy/`, y `physics/tensors.js` quedó sin modificar.
+
+**Verificación.**
+
+- Línea de base antes de tocar nada: `node tests/run.js` → 281 pruebas, todas
+  pasan, Node v22.22.2. Al terminar: 298, todas pasan. Ninguna prueba fuera de
+  `known-defects.test.js` falló en el camino.
+- Los valores se verificaron contra la definición, no contra la salida del
+  motor: `√3·τ` calculado como `Math.sqrt(3) * 50` en la prueba de corte puro,
+  `1852/3600` como cociente, `Σλ = tr(A)` y `Πλ = det(A)` como verificación
+  cruzada, y `A·v = λ·v` para cada autovector de Jacobi.
+- Se agregó una prueba de que los autovectores de Jacobi son ortonormales: son
+  el producto acumulado de rotaciones ortogonales, así que si dejan de serlo la
+  acumulación está mal aplicada, y eso no lo detecta comparar autovalores.
+- Ninguna tolerancia se subió. Al revés: las dos que `units.test.js` tenía
+  aflojadas por H-01 y H-02 (`1e-6` y `1e-4`) volvieron a la de por defecto, y
+  el factor del nudo se compara ahora por igualdad exacta.
+- Contra `AI_RULES.md` §10: `eigen.js` quedó en 421 líneas (máximo 500) y su
+  función más larga en 38 efectivas (máximo 50). Sin `throw` genéricos, sin
+  `var`, sin globales, sin referencias al DOM.
+- `eigen.js` no importa `formatter/`: las funciones portadas usaban
+  `cleanNumber` para limpiar ruido, y ningún archivo de `algebra/` depende hoy
+  de `formatter/`. En vez de crear esa dependencia, las rotaciones fuerzan a
+  cero el elemento que anulan por construcción, que es donde estaba el ruido.
+
+**Próximos pasos.** El Paso 2 (resto del port de ADR-001 §5) queda como
+siguiente, más liviano: mínimos cuadrados por QR, spline reutilizable,
+`solveLU`, `solveCholesky`, `numericalDerivative` —que además cerraría D4— y los
+coeficientes de Lagrange. Tres cosas para evaluar, sin implementarlas ahora:
+**(a)** D10, el nombre de `eigenvaluesQR`, que conviene resolver antes de que
+una calculadora lo use y renombrarlo salga caro; **(b)** desplazamientos de
+Wilkinson en el camino QR general, que hoy sigue siendo el más débil de los
+tres; **(c)** D8, los ejemplos de `toScientific` y `formatNumber` en `API.md`,
+que siguen contradiciendo el comportamiento real y son de esta zona.
+
+---
 
 ### 2026-09-13 — Suite de pruebas del motor (Paso 1) · Chat 5
 

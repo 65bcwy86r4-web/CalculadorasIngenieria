@@ -36,7 +36,8 @@ const EXPECTED_FUNCTIONS = [
   'determinantByGauss', 'determinantByCofactors',
   'inverse', 'adjugate', 'cofactorMatrix', 'conditionNumber',
   'luDecomposition', 'qrDecomposition', 'choleskyDecomposition',
-  'eigenvaluesQR', 'eigenvectorFor', 'eigenvectors', 'diagonalize',
+  'eigenvaluesQR', 'jacobiEigenDecomposition', 'eigenvalues2x2',
+  'eigenvectorFor', 'eigenvectors', 'diagonalize',
   // Interpolación
   'linearInterpolate', 'piecewiseLinear',
   'lagrangeInterpolate', 'lagrangeBasis', 'cubicSplineInterpolate',

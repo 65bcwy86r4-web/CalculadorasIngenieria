@@ -76,8 +76,13 @@ export { luDecomposition } from './algebra/lu.js';
 export { qrDecomposition } from './algebra/qr.js';
 export { choleskyDecomposition } from './algebra/cholesky.js';
 
-// Autovalores, autovectores y diagonalización.
-export { eigenvaluesQR, eigenvectorFor, eigenvectors, diagonalize } from './algebra/eigen.js';
+// Autovalores, autovectores y diagonalización. `eigenvaluesQR` despacha al
+// método adecuado según el tipo de matriz; los dos métodos específicos se
+// exponen además por separado para poder pedirlos de forma explícita.
+export {
+  eigenvaluesQR, jacobiEigenDecomposition, eigenvalues2x2,
+  eigenvectorFor, eigenvectors, diagonalize,
+} from './algebra/eigen.js';
 
 /* ============================ INTERPOLACIÓN ============================ */
 

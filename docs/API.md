@@ -135,9 +135,10 @@ Inversa vía Gauss-Jordan sobre `[A | I]`.
 **Ejemplo:** `inverse(new Matrix([[4,7],[2,6]])).inverse`
 
 ### `cofactorMatrix(matrix)`
-**Retorna:** `Matrix` — `Cᵢⱼ = (-1)^(i+j) · det(menor_ij)`
+**Retorna:** `Matrix` — `Cᵢⱼ = (-1)^(i+j) · det(menor_ij)`. Caso base: la matriz de cofactores de una 1×1 es `[[1]]`, cualquiera sea su elemento.
 **Excepciones:** `DimensionError` si no es cuadrada.
 **Ejemplo:** `cofactorMatrix(new Matrix([[1,2],[3,4]])).toArray() // [[4,-3],[-2,1]]`
+**Ejemplo:** `cofactorMatrix(new Matrix([[7]])).toArray() // [[1]]`
 
 ### `adjugate(matrix)`
 Transpuesta de la matriz de cofactores. Para n > 6 usa `det(A)·A⁻¹` internamente por eficiencia (mismo resultado).
@@ -169,10 +170,26 @@ Transpuesta de la matriz de cofactores. Para n > 6 usa `det(A)·A⁻¹` internam
 **Ejemplo:** `choleskyDecomposition(new Matrix([[4,2],[2,3]]))`
 
 ### `eigenvaluesQR(matrix, iterations = 500)`
-Autovalores reales aproximados vía algoritmo QR iterativo.
+Autovalores reales de una matriz cuadrada, ordenados de mayor a menor. **Despacha al método adecuado según el tipo de matriz** (ADR-004): 1×1 trivial, simétrica de cualquier orden por rotaciones de Jacobi, 2×2 no simétrica por la forma cerrada del polinomio característico, y el resto por QR iterativo. `iterations` solo afecta al camino QR.
+
+`matrixT` es la matriz semejante a `A` que produjo el método elegido —diagonal en Jacobi, la iterada `Aₖ` en QR—. `hasComplexHint` avisa que el espectro puede tener pares complejos conjugados, que el motor no representa todavía; para una matriz simétrica es siempre `false`, por el teorema espectral.
 **Retorna:** `{ values: number[], matrixT: Matrix, hasComplexHint: boolean }`
 **Excepciones:** `DimensionError` si no es cuadrada.
 **Ejemplo:** `eigenvaluesQR(new Matrix([[2,1],[1,2]])).values // [3, 1]`
+**Ejemplo:** `eigenvaluesQR(new Matrix([[0,50],[50,0]])).values // [50, -50]`
+
+### `jacobiEigenDecomposition(matrix, tolerance = 1e-10, maxRotations = 1000)`
+Autovalores **y** autovectores de una matriz simétrica real por rotaciones de Jacobi. Converge siempre para matrices simétricas, incluso con autovalores repetidos o de igual módulo. Los autovectores salen ortonormales y en el mismo orden que los autovalores.
+**Retorna:** `{ values: number[], vectors: number[][], rotations: number, converged: boolean }`
+**Excepciones:** `DimensionError` si no es cuadrada; `MathError` (`NOT_SYMMETRIC`) si no es simétrica.
+**Ejemplo:** `jacobiEigenDecomposition(new Matrix([[2,1],[1,2]])).values // [3, 1]`
+
+### `eigenvalues2x2(matrix, tolerance = 1e-10)`
+Autovalores de una matriz 2×2 por su polinomio característico `λ² − tr(A)·λ + det(A) = 0`. Exacto, no iterativo. Si las raíces son complejas conjugadas, `values` viene vacío y el par se informa por partes en `realPart` e `imaginaryPart` (el motor no representa números complejos todavía).
+**Retorna:** `{ values: number[], hasComplexPair: boolean, realPart: number, imaginaryPart: number }`
+**Excepciones:** `DimensionError` si no es cuadrada; `MathError` (`NOT_2X2`) si no es de 2×2.
+**Ejemplo:** `eigenvalues2x2(new Matrix([[0,1],[1,0]])).values // [1, -1]`
+**Ejemplo:** `eigenvalues2x2(new Matrix([[0,-1],[1,0]])).imaginaryPart // 1 (autovalores ±i)`
 
 ### `eigenvectorFor(matrix, lambda, tolerance = 1e-10)`
 Autovector para un autovalor dado, vía núcleo de `(A - λI)`.
@@ -322,13 +339,13 @@ convert(5, 'kg', 'm');      // lanza DimensionError
 Unidades: `m, km, cm, mm, mi, yd, ft, in, nmi`. **Ejemplo:** `convertDistance(1, 'nmi', 'km') // 1.852`
 
 ### `convertPressure(value, from, to)`
-Unidades: `Pa, kPa, atm, bar, mbar, mmHg, psi, inHg`. **Ejemplo:** `convertPressure(1, 'atm', 'Pa') // 101325`
+Unidades: `Pa, kPa, atm, bar, mbar, mmHg, psi, inHg`. El milímetro de mercurio se define como el torr (`101325/760` Pa) y la pulgada de mercurio se deriva de él (`25.4 mmHg`), de modo que `1 atm = 760 mmHg` y `1 inHg = 25.4 mmHg` son exactos. **Ejemplo:** `convertPressure(1, 'atm', 'Pa') // 101325`
 
 ### `convertTemperature(value, from, to)`
 Unidades: `K, C, F, R`. Conversión afín (no solo proporcional). **Ejemplo:** `convertTemperature(32, 'F', 'C') // 0`
 
 ### `convertSpeed(value, from, to)`
-Unidades: `m/s, km/h, mph, kt, ft/s`. **Ejemplo:** `convertSpeed(120, 'kt', 'km/h') // 222.24`
+Unidades: `m/s, km/h, mph, kt, ft/s`. El nudo usa el factor exacto `1852/3600` m/s (una milla náutica por hora). **Ejemplo:** `convertSpeed(120, 'kt', 'km/h') // 222.24`
 
 ### `convertMass(value, from, to)`
 Unidades: `kg, g, mg, ton, lb, oz, slug`. **Ejemplo:** `convertMass(1, 'slug', 'kg') // 14.5939...`

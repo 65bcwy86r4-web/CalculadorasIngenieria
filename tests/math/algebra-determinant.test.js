@@ -264,6 +264,40 @@ export const tests = [
     },
   },
   {
+    name: 'cofactorMatrix y adjugate resuelven el caso límite de una 1x1',
+    fn: () => {
+      // Era el hallazgo H-05: las dos lanzaban DimensionError acá. El menor de
+      // una matriz de 1x1 es la matriz vacía, cuyo determinante vale 1 por
+      // convención, así que el único cofactor es (+1)·1 = 1 y la adjunta de
+      // [[a]] es [[1]], sea cual sea a.
+      assertMatrixClose(cofactorMatrix(new Matrix([[7]])), [[1]], 'Cofactores de una 1x1.');
+      assertMatrixClose(cofactorMatrix(new Matrix([[-3]])), [[1]], 'No depende del valor.');
+      assertMatrixClose(adjugate(new Matrix([[7]])), [[1]], 'Adjunta de una 1x1.');
+    },
+  },
+  {
+    name: 'adj(A)/det(A) da la inversa correcta de una 1x1',
+    fn: () => {
+      // La razón por la que [[1]] es el valor correcto y no una convención
+      // arbitraria: es el único que hace que la fórmula de la inversa por
+      // adjunta siga valiendo en el caso base.
+      const a = new Matrix([[7]]);
+      const det = determinantByGauss(a).value;
+      assertMatrixClose(
+        adjugate(a).scalarMultiply(1 / det),
+        inverse(a).inverse.toArray(),
+        'adj(A)/det(A) debería coincidir con la inversa por Gauss-Jordan.',
+      );
+    },
+  },
+  {
+    name: 'A · adj(A) = det(A) · I también en una 1x1',
+    fn: () => {
+      const a = new Matrix([[7]]);
+      assertMatrixClose(a.multiply(adjugate(a)), [[7]], 'A · adj(A) en el caso base.');
+    },
+  },
+  {
     name: 'cofactorMatrix y adjugate exigen matriz cuadrada',
     fn: () => {
       const rect = new Matrix([[1, 2, 3], [4, 5, 6]]);

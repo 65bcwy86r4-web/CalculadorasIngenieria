@@ -49,15 +49,27 @@ export function inverse(matrix, tolerance = DEFAULT_TOLERANCE) {
 
 /**
  * Matriz de cofactores: C[i][j] = (-1)^(i+j) · det(menor_ij).
+ *
+ * Caso base 1x1: el menor de una matriz de 1x1 es la matriz vacía, cuyo
+ * determinante vale 1 por convención, así que el único cofactor es
+ * (+1)·1 = 1 y la matriz de cofactores de [[a]] es [[1]], cualquiera sea a.
+ * Con eso la fórmula adj(A)/det(A) devuelve [[1/a]], que es la inversa
+ * correcta. Se resuelve acá y no en Matrix.minor porque una Matrix de 0x0
+ * no es un objeto válido del motor y no tiene sentido construirla.
+ *
  * @param {Matrix} matrix
  * @returns {Matrix}
  * @throws {DimensionError} si no es cuadrada
  * @example
  * cofactorMatrix(new Matrix([[1,2],[3,4]])).toArray(); // [[4,-3],[-2,1]]
+ * @example
+ * cofactorMatrix(new Matrix([[7]])).toArray(); // [[1]]
  */
 export function cofactorMatrix(matrix) {
   assertSquareMatrix(matrix, 'matrix');
   const n = matrix.rows;
+  if (n === 1) return new Matrix([[1]]);
+
   const data = Array.from({ length: n }, () => new Array(n).fill(0));
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) {
@@ -81,6 +93,8 @@ export function cofactorMatrix(matrix) {
  * @throws {SingularMatrixError} si es singular y n > 6 (no se puede usar det(A)·A⁻¹)
  * @example
  * adjugate(new Matrix([[1,2],[3,4]])).toArray(); // [[4,-2],[-3,1]]
+ * @example
+ * adjugate(new Matrix([[7]])).toArray(); // [[1]] — adj(A)/det(A) da [[1/7]]
  */
 export function adjugate(matrix) {
   assertSquareMatrix(matrix, 'matrix');

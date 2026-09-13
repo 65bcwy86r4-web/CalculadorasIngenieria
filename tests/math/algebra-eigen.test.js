@@ -15,17 +15,22 @@
  *
  * Autor: Chat 5 — QA y Verificación
  * Fecha de creación: 2026-09-13
+ * Modificado: 2026-09-13 — Chat 2. Al cerrarse H-03 se mudó acá la
+ *   verificación correcta que estaba fijada en known-defects.test.js, y se
+ *   agregó la cobertura de las dos funciones portadas desde legacy/motor-v1/
+ *   por ADR-004: jacobiEigenDecomposition y eigenvalues2x2.
  * Dependencias: shared/math/index.js, tests/assert.js
  * ---------------------------------------------------------------------------
  */
 
 import {
-  eigenvaluesQR, eigenvectorFor, eigenvectors, diagonalize,
+  eigenvaluesQR, jacobiEigenDecomposition, eigenvalues2x2,
+  eigenvectorFor, eigenvectors, diagonalize,
   Matrix, MathError, DimensionError,
 } from '../../shared/math/index.js';
 
 import {
-  assertTrue, assertEqual, assertClose, assertMatrixClose, assertThrows,
+  assertTrue, assertFalse, assertEqual, assertClose, assertMatrixClose, assertThrows,
 } from '../assert.js';
 
 /**
@@ -133,6 +138,205 @@ export const tests = [
         DimensionError,
         'DIMENSION_ERROR',
         'Autovalores de una 2x3.',
+      );
+    },
+  },
+
+  /* ------------------- autovalores de igual módulo (ex H-03) ------------------- */
+  {
+    name: 'eigenvaluesQR resuelve una simétrica con autovalores ±λ',
+    fn: () => {
+      // Era el hallazgo H-03: la iteración QR sin desplazamiento no converge
+      // cuando dos autovalores tienen el mismo módulo, y devolvía [0, 0]. Con
+      // el despacho por tipo de matriz de ADR-004 el caso simétrico va por
+      // Jacobi, que no tiene esa limitación y además da el valor exacto.
+      const { values } = eigenvaluesQR(new Matrix([[0, 50], [50, 0]]));
+      assertEigenvalues(values, [50, -50], 'Simétrica de autovalores opuestos.');
+    },
+  },
+  {
+    name: 'eigenvaluesQR ordena los autovalores de mayor a menor',
+    fn: () => {
+      const { values } = eigenvaluesQR(new Matrix([[0, 50], [50, 0]]));
+      assertClose(values[0], 50, 'Primero el mayor.', TOLERANCIA_ITERATIVA);
+      assertClose(values[1], -50, 'Después el menor.', TOLERANCIA_ITERATIVA);
+    },
+  },
+  {
+    name: 'eigenvaluesQR resuelve el tensor de corte puro 3x3',
+    fn: () => {
+      // Autovalores exactos +τ, 0, −τ. Es la matriz que hacía que
+      // vonMisesStress devolviera cero (H-04).
+      const { values } = eigenvaluesQR(new Matrix([[0, 100, 0], [100, 0, 0], [0, 0, 0]]));
+      assertEigenvalues(values, [100, 0, -100], 'Corte puro 3x3.');
+    },
+  },
+  {
+    name: 'hasComplexHint es false para toda matriz simétrica',
+    fn: () => {
+      // Contraprueba del falso positivo que dejaba H-03: por el teorema
+      // espectral, toda matriz simétrica real tiene autovalores reales, así
+      // que marcar complejos ahí es siempre un error.
+      const simetricas = [
+        new Matrix([[0, 1], [1, 0]]),
+        new Matrix([[2, 1], [1, 2]]),
+        new Matrix([[0, 50], [50, 0]]),
+        new Matrix([[0, 100, 0], [100, 0, 0], [0, 0, 0]]),
+        new Matrix([[4, 1, 0], [1, 4, 1], [0, 1, 4]]),
+      ];
+      simetricas.forEach((matriz, i) => {
+        assertFalse(
+          eigenvaluesQR(matriz).hasComplexHint,
+          `La simétrica ${i} no debería marcar autovalores complejos.`,
+        );
+      });
+    },
+  },
+  {
+    name: 'la suma de los autovalores es la traza, también con autovalores ±λ',
+    fn: () => {
+      // Verificación cruzada independiente del algoritmo: tr(A) = Σλᵢ.
+      const A = new Matrix([[0, 50], [50, 0]]);
+      const { values } = eigenvaluesQR(A);
+      const suma = values.reduce((acumulado, valor) => acumulado + valor, 0);
+      assertClose(suma, A.trace(), 'Suma de autovalores vs. traza.', TOLERANCIA_ITERATIVA);
+    },
+  },
+
+  /* ---------------------- jacobiEigenDecomposition ---------------------- */
+  {
+    name: 'jacobiEigenDecomposition resuelve una simétrica 2x2 conocida',
+    fn: () => {
+      const { values, converged } = jacobiEigenDecomposition(new Matrix([[2, 1], [1, 2]]));
+      assertEigenvalues(values, [3, 1], 'Autovalores por Jacobi.');
+      assertTrue(converged, 'Debería converger en una 2x2.');
+    },
+  },
+  {
+    name: 'jacobiEigenDecomposition da los autovalores exactos en el corte puro',
+    fn: () => {
+      // Una sola rotación alcanza: el caso que motivó el port (ADR-004).
+      const { values, rotations } = jacobiEigenDecomposition(new Matrix([[0, 50], [50, 0]]));
+      assertEigenvalues(values, [50, -50], 'Corte puro por Jacobi.');
+      assertTrue(rotations >= 1, 'Debería haber aplicado al menos una rotación.');
+    },
+  },
+  {
+    name: 'los autovectores de Jacobi satisfacen A·v = λ·v',
+    fn: () => {
+      const A = new Matrix([[4, 1, 0], [1, 4, 1], [0, 1, 4]]);
+      const { values, vectors } = jacobiEigenDecomposition(A);
+      values.forEach((lambda, i) => {
+        const v = new Matrix(vectors[i].map((componente) => [componente]));
+        assertMatrixClose(
+          A.multiply(v),
+          v.scalarMultiply(lambda).toArray(),
+          `A·v = λ·v para el autovalor ${i}.`,
+          TOLERANCIA_ITERATIVA,
+        );
+      });
+    },
+  },
+  {
+    name: 'los autovectores de Jacobi son ortonormales',
+    fn: () => {
+      // Jacobi acumula rotaciones ortogonales, así que la base que devuelve
+      // tiene que ser ortonormal por construcción. Si deja de serlo, la
+      // acumulación está mal aplicada.
+      const { vectors } = jacobiEigenDecomposition(new Matrix([[4, 1, 0], [1, 4, 1], [0, 1, 4]]));
+      const producto = (u, v) => u.reduce((suma, valor, i) => suma + valor * v[i], 0);
+      vectors.forEach((u, i) => {
+        assertClose(producto(u, u), 1, `Norma del autovector ${i}.`, TOLERANCIA_ITERATIVA);
+        vectors.slice(i + 1).forEach((v, j) => {
+          assertClose(producto(u, v), 0, `Ortogonalidad ${i}-${i + j + 1}.`, TOLERANCIA_ITERATIVA);
+        });
+      });
+    },
+  },
+  {
+    name: 'jacobiEigenDecomposition resuelve el caso límite de una 1x1',
+    fn: () => {
+      const { values, vectors, converged } = jacobiEigenDecomposition(new Matrix([[6]]));
+      assertEigenvalues(values, [6], 'Autovalor de una 1x1.');
+      assertClose(Math.abs(vectors[0][0]), 1, 'Autovector normalizado de una 1x1.');
+      assertTrue(converged, 'Una 1x1 ya está diagonalizada.');
+    },
+  },
+  {
+    name: 'jacobiEigenDecomposition rechaza una matriz no simétrica',
+    fn: () => {
+      assertThrows(
+        () => jacobiEigenDecomposition(new Matrix([[1, 2], [3, 4]])),
+        MathError,
+        'NOT_SYMMETRIC',
+        'Jacobi sobre una no simétrica.',
+      );
+    },
+  },
+  {
+    name: 'jacobiEigenDecomposition exige matriz cuadrada',
+    fn: () => {
+      assertThrows(
+        () => jacobiEigenDecomposition(new Matrix([[1, 2, 3], [4, 5, 6]])),
+        DimensionError,
+        'DIMENSION_ERROR',
+        'Jacobi sobre una 2x3.',
+      );
+    },
+  },
+
+  /* ---------------------------- eigenvalues2x2 ---------------------------- */
+  {
+    name: 'eigenvalues2x2 resuelve exacto el caso de raíces reales',
+    fn: () => {
+      // Exacto, no aproximado: es la fórmula cuadrática, sin iteración. Por
+      // eso acá se compara con la tolerancia por defecto y no con la iterativa.
+      const { values, hasComplexPair } = eigenvalues2x2(new Matrix([[0, 1], [1, 0]]));
+      assertFalse(hasComplexPair, 'Los autovalores de esta matriz son reales.');
+      assertClose(values[0], 1, 'Mayor autovalor.');
+      assertClose(values[1], -1, 'Menor autovalor.');
+    },
+  },
+  {
+    name: 'eigenvalues2x2 reproduce el polinomio característico',
+    fn: () => {
+      // Verificación cruzada: Σλ = tr(A) y Πλ = det(A), exactos.
+      const A = new Matrix([[3, 2], [1, 4]]);
+      const { values } = eigenvalues2x2(A);
+      assertClose(values[0] + values[1], A.trace(), 'Suma vs. traza.');
+      assertClose(values[0] * values[1], 3 * 4 - 2 * 1, 'Producto vs. determinante.');
+    },
+  },
+  {
+    name: 'eigenvalues2x2 detecta el par complejo conjugado de una rotación',
+    fn: () => {
+      // Rotación de 90°: autovalores ±i. El motor no representa complejos
+      // (deuda D5), así que los informa por partes en vez de inventar reales.
+      const salida = eigenvalues2x2(new Matrix([[0, -1], [1, 0]]));
+      assertTrue(salida.hasComplexPair, 'Debería detectar el par complejo.');
+      assertEqual(salida.values.length, 0, 'No debería devolver autovalores reales.');
+      assertClose(salida.realPart, 0, 'Parte real del par.');
+      assertClose(salida.imaginaryPart, 1, 'Parte imaginaria del par.');
+    },
+  },
+  {
+    name: 'eigenvalues2x2 trata la raíz doble como real',
+    fn: () => {
+      // Discriminante exactamente cero: un solo autovalor con multiplicidad 2.
+      const { values, hasComplexPair } = eigenvalues2x2(new Matrix([[5, 1], [0, 5]]));
+      assertFalse(hasComplexPair, 'Una raíz doble es real, no compleja.');
+      assertClose(values[0], 5, 'Primera copia de la raíz.');
+      assertClose(values[1], 5, 'Segunda copia de la raíz.');
+    },
+  },
+  {
+    name: 'eigenvalues2x2 rechaza una matriz que no es de 2x2',
+    fn: () => {
+      assertThrows(
+        () => eigenvalues2x2(Matrix.identity(3)),
+        MathError,
+        'NOT_2X2',
+        'Forma cerrada sobre una 3x3.',
       );
     },
   },

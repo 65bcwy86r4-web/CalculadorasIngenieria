@@ -71,13 +71,10 @@ export const tests = [
       assertClose(convertPressure(1, 'bar', 'Pa'), 100000, '1 bar = 10⁵ Pa.');
       assertClose(convertPressure(1, 'bar', 'mbar'), 1000, '1 bar = 1000 mbar.');
       assertClose(convertPressure(1, 'kPa', 'Pa'), 1000, '1 kPa = 1000 Pa.');
-      // Tolerancia 1e-4 y no 1e-9 por el hallazgo H-02 (ver el informe de la
-      // sesión): el factor de mmHg del motor es 133.322368, truncado respecto
-      // del torr exacto 101325/760 = 133.32236842105263. El desvío es de
-      // 3.2e-9 relativo. La tolerancia está puesta para que esta prueba siga
-      // valiendo cuando el Chat 2 corrija el factor, no para tapar el desvío:
-      // el desvío tiene su propia prueba, más abajo.
-      assertClose(convertPressure(1, 'atm', 'mmHg'), 760, '1 atm = 760 mmHg.', 1e-4);
+      // Tolerancia por defecto desde que se cerró H-02: el mmHg pasó a
+      // definirse como el torr exacto (101325/760), así que esta igualdad ya
+      // no necesita margen.
+      assertClose(convertPressure(1, 'atm', 'mmHg'), 760, '1 atm = 760 mmHg.');
       assertClose(convertPressure(1, 'atm', 'psi'), 14.695948775, '1 atm en psi.', 1e-6);
     },
   },
@@ -122,11 +119,10 @@ export const tests = [
     fn: () => {
       assertClose(convertSpeed(1, 'km/h', 'm/s'), 1 / 3.6, '1 km/h = 1/3.6 m/s.');
       assertClose(convertSpeed(3.6, 'km/h', 'm/s'), 1, '3.6 km/h = 1 m/s.');
-      // Tolerancia 1e-6 por el hallazgo H-01: el factor del nudo es
-      // 0.514444444, truncado respecto del exacto 1852/3600 = 0.5144444…
-      // periódico. Desvío de 8.6e-10 relativo, con prueba propia más abajo.
-      assertClose(convertSpeed(1, 'kt', 'km/h'), 1.852, 'Nudo: 1 nmi por hora.', 1e-6);
-      assertClose(convertSpeed(250, 'kt', 'm/s'), 128.61111111111111, '250 kt en m/s.', 1e-6);
+      // Tolerancia por defecto desde que se cerró H-01: el factor del nudo
+      // pasó a ser 1852/3600 exacto, así que ya no necesita margen.
+      assertClose(convertSpeed(1, 'kt', 'km/h'), 1.852, 'Nudo: 1 nmi por hora.');
+      assertClose(convertSpeed(250, 'kt', 'm/s'), 128.61111111111111, '250 kt en m/s.');
       assertClose(convertSpeed(1, 'mph', 'ft/s'), 5280 / 3600, '1 mph en ft/s.', 1e-9);
     },
   },
@@ -164,7 +160,7 @@ export const tests = [
       assertClose(convert(1000, 'm', 'km'), 1, 'Distancia.');
       assertClose(convert(32, 'F', 'C'), 0, 'Temperatura.');
       assertClose(convert(1, 'atm', 'Pa'), 101325, 'Presión.');
-      assertClose(convert(1, 'kt', 'km/h'), 1.852, 'Velocidad.', 1e-6); // ver H-01
+      assertClose(convert(1, 'kt', 'km/h'), 1.852, 'Velocidad.');
       assertClose(convert(1, 'lb', 'kg'), 0.45359237, 'Masa.', 1e-12);
       assertClose(convert(1, 'kWh', 'J'), 3600000, 'Energía.');
     },
@@ -216,37 +212,41 @@ export const tests = [
     },
   },
 
-  /* ------------------- desvíos detectados, con cota explícita ------------------- */
+  /* ----------------- factores exactos por definición de la unidad ----------------- */
   {
-    name: 'H-01: el factor del nudo está truncado, con un desvío acotado',
+    name: 'el factor del nudo es exacto, no truncado',
     fn: () => {
-      // Hallazgo reportado al Chat 2. El nudo es, por definición, una milla
-      // náutica por hora: 1852/3600 m/s exactos. El motor usa 0.514444444.
-      // Esta prueba fija la cota del desvío para que no crezca sin que nadie
-      // se entere, y sigue pasando cuando el factor se corrija (el desvío
-      // pasaría a ser 0).
+      // Era el hallazgo H-01: el motor usaba 0.514444444, con un desvío de
+      // 8.6e-10 relativo. El nudo es por definición una milla náutica por
+      // hora, y la milla náutica son 1852 metros exactos, así que el factor
+      // es 1852/3600 y la igualdad tiene que ser exacta, no aproximada.
       const exacto = 1852 / 3600;
       const delMotor = convertSpeed(1, 'kt', 'm/s');
-      const desvioRelativo = Math.abs(delMotor - exacto) / exacto;
       assertTrue(
-        desvioRelativo < 1e-8,
-        `El desvío del factor de nudos debería estar por debajo de 1e-8 (es ${desvioRelativo}).`,
+        delMotor === exacto,
+        `El factor del nudo debería ser exactamente 1852/3600 (es ${delMotor}).`,
       );
+      assertClose(convertSpeed(1, 'kt', 'km/h'), 1.852, 'Un nudo es 1.852 km/h exactos.');
     },
   },
   {
-    name: 'H-02: mmHg e inHg no son mutuamente consistentes',
+    name: 'mmHg e inHg son mutuamente consistentes',
     fn: () => {
-      // Por definición, una pulgada son 25.4 mm exactos, así que 1 inHg debe
-      // ser exactamente 25.4 mmHg, sin importar qué valor se elija para el
-      // milímetro de mercurio. El motor da 25.40000639…: los dos factores se
-      // redondearon por separado. Es el desvío más grande del catálogo de
-      // unidades y el único detectable sin recurrir a una fuente externa.
-      const enMmHg = convertPressure(1, 'inHg', 'mmHg');
-      const desvioRelativo = Math.abs(enMmHg - 25.4) / 25.4;
-      assertTrue(
-        desvioRelativo < 1e-6,
-        `1 inHg debería ser 25.4 mmHg dentro de 1e-6 relativo (es ${enMmHg}, desvío ${desvioRelativo}).`,
+      // Era el hallazgo H-02: los dos factores estaban redondeados por
+      // separado y 1 inHg daba 25.40000639 mmHg. Una pulgada son 25.4 mm
+      // exactos, así que la identidad tiene que valer sin tolerancia
+      // apreciable, sea cual sea el valor que se elija para el mmHg.
+      assertClose(
+        convertPressure(1, 'inHg', 'mmHg'),
+        25.4,
+        '1 inHg debería ser 25.4 mmHg.',
+      );
+      // El mmHg se define como el torr —la 760-ava parte de la atmósfera
+      // estándar—, así que esta otra identidad también cierra exacta.
+      assertClose(
+        convertPressure(1, 'atm', 'mmHg'),
+        760,
+        '1 atm debería ser 760 mmHg.',
       );
     },
   },
