@@ -1,9 +1,9 @@
 # ADR-007 — Contrato de `steps`: forma de retorno del procedimiento
 
 - **Fecha:** 2026-09-13
-- **Estado:** Aceptado
+- **Estado:** Aceptado, con la enmienda del 2026-09-14 en §3.3
 - **Decide:** responsable del proyecto
-- **Relacionado:** HANDOFF D15, D14, ADR-006 (interfaz antes que port)
+- **Relacionado:** HANDOFF D15, D14, D16, ADR-006 (interfaz antes que port)
 
 ---
 
@@ -116,16 +116,45 @@ fuera de esta lista es un error de contrato.
 | `rotate` | Rotación de Jacobi |
 | `iterate` | Una iteración de un método iterativo |
 
-**Pasos de cierre**
+**Paso de cierre**
 
 | `type` | Cuándo |
 |---|---|
 | `final` | Resultado final |
-| `unique` | El sistema tiene solución única |
-| `infinite` | El sistema tiene infinitas soluciones |
-| `incompatible` | El sistema es incompatible |
 
-Los cuatro de cierre ya están en uso en `solveSystem` y se conservan tal cual.
+> ### Enmienda del 2026-09-14 — corrección de §3.3
+>
+> La versión original de esta tabla incluía `unique`, `infinite` e
+> `incompatible` como tipos de paso, afirmando que "ya están en uso en
+> `solveSystem`". **Era un error de relevamiento**, detectado por el Chat 2 al
+> ejecutar el Paso 2c-1 y reportado como D16.
+>
+> Esos tres valores existen, pero como **discriminante del objeto de retorno**
+> de `solveSystem` (`{ type: 'unique', solution, steps, ... }`), que es una cosa
+> distinta de un paso del procedimiento. Ningún paso los lleva ni los llevó
+> nunca. Verificado:
+>
+> ```
+> solveSystem(A, b).type              -> "unique"
+> solveSystem(A, b).steps[*].type     -> "elim", "scale", "swap", "info"
+> ```
+>
+> Quedan **fuera** del vocabulario de pasos. Dos consecuencias, ambas para el
+> Paso 2c-2:
+>
+> 1. **`solveSystem` cierra su procedimiento con un paso `final`** cuyo `text`
+>    enuncia la clasificación ("El sistema es compatible determinado", etc.).
+>    Hoy el procedimiento termina sin conclusión escrita: la clasificación solo
+>    está en el objeto de retorno, así que quien lea únicamente el desarrollo no
+>    la ve.
+>
+> 2. **El discriminante de `solveSystem` pasa a llamarse `classification`.**
+>    Tener `result.type` y `step.type` con el mismo nombre y vocabularios
+>    distintos, en dos objetos que una interfaz recorre en la misma función de
+>    renderizado, es una confusión servida. Los valores no cambian
+>    (`'unique' | 'infinite' | 'incompatible'`); cambia la clave. Es ruptura de
+>    API, y por eso se hace ahora: sigue sin haber consumidores, y es el mismo
+>    argumento de ADR-005 y ADR-006.
 
 ### 3.4 Cambios de forma de retorno
 

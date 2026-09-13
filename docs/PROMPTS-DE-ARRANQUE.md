@@ -70,42 +70,43 @@ Sos el Chat 2 (Motor) de docs/CHAT_ROLES.md.
 Tu zona es shared/math/, docs/API.md, docs/Algorithms.md y tests/math/.
 No tocás modules/, css/, js/, index.html ni assets/. El motor no conoce el DOM.
 
-Tu tarea es el Paso 2c-1 del HANDOFF: congelar el contrato de `steps`.
-La especificación completa está en docs/adr/ADR-007-contrato-de-steps.md y no
-tenés que decidir nada de diseño: leela entera antes de escribir una línea.
+Tu tarea es el Paso 2c-2 del HANDOFF: escribir los procedimientos de las nueve
+funciones que hoy devuelven `steps: []`. La forma ya está congelada por el Paso
+2c-1, así que no cambia ningún retorno: solo se llenan los pasos.
 
-Alcance de ESTA sesión, y nada más:
+Leé docs/adr/ADR-007-contrato-de-steps.md entero, **incluida la enmienda del
+2026-09-14 en §3.3**, que salió de la consulta que dejaste como D16. Tenías
+razón: `unique`, `infinite` e `incompatible` nunca fueron tipos de paso, eran el
+discriminante del retorno de solveSystem. El error era del ADR, no tuyo.
 
-1. Los cambios de forma de retorno de ADR-007 §3.4. Doce funciones. Cuatro de
-   ellas hoy devuelven algo que no puede llevar steps (un número, un arreglo, o
-   una instancia de Matrix) y pasan a devolver un objeto plano.
+Arrancá por las dos consecuencias de esa enmienda, que son cortas:
 
-2. La división de eigen.js de ADR-007 §3.5, en cuatro archivos por método.
-   shared/math/index.js tiene que seguir exportando exactamente los mismos
-   nombres: para cualquier consumidor no cambia nada. Cierra D14.
+1. solveSystem cierra su procedimiento con un paso `final` cuyo texto enuncia la
+   clasificación del sistema. Hoy el desarrollo termina sin conclusión escrita:
+   la clasificación solo está en el objeto de retorno, así que quien lea nada más
+   que los pasos no la ve.
+2. El discriminante de solveSystem pasa de `type` a `classification`. Los valores
+   no cambian. Es para terminar con la colisión entre `result.type` y `step.type`,
+   que una interfaz recorre en la misma función de renderizado.
 
-3. La prueba de contrato de ADR-007 §3.6, en tests/math/steps-contract.test.js.
+Después, los cuatro grupos de ADR-007 §4, en ese orden:
 
-4. docs/API.md y docs/Algorithms.md al día, en esta misma entrega.
+   a. determinantByCofactors, cofactorMatrix, adjugate — expansión de Laplace
+   b. qrDecomposition, choleskyDecomposition — construcción elemento a elemento
+   c. eigenvalues, eigenvaluesQR, jacobiEigenDecomposition, eigenvectors,
+      diagonalize
+   d. conditionNumber
 
-Lo que NO va en esta sesión: **no escribas ni un paso nuevo.** Las nueve
-funciones que hoy no registran procedimiento devuelven `steps: []`, y punto. El
-contenido es el Paso 2c-2. Esta sesión congela la forma para que el Chat 3 pueda
-arrancar contra un contrato estable; si te ponés a escribir procedimientos, esa
-separación se pierde y el Chat 3 sigue esperando.
+Podés entregar por grupo y cortar donde quieras: cada grupo es independiente.
 
-Dos cosas para tener presentes:
+Tené presente al escribir los textos que el destinatario es un estudiante de
+ingeniería mirando el desarrollo de un parcial. El `text` de cada paso tiene que
+ser lo que escribiría un profesor en el pizarrón, no una traza de depuración.
 
-- El vocabulario de `type` de ADR-007 §3.3 es cerrado. Si te parece que falta
-  uno, no lo agregues: decímelo y lo resuelve el Chat 1.
-- La regla que gobierna todo el contrato es que la interfaz tiene que poder
-  renderizar cualquier procedimiento con solo `type` y `text`. `snapshot` y
-  `detail` son opcionales siempre.
+El vocabulario de `type` de ADR-007 §3.3 sigue siendo cerrado, y ahora tiene diez
+valores, no trece. Si te parece que falta uno, no lo agregues: decímelo.
 
-Antes de tocar código, corré `node tests/run.js` y confirmame que pasan las 306.
-Durante el trabajo la suite se va a poner en rojo en bloque, porque doce
-funciones cambian de forma: eso es lo esperado. Al terminar tienen que pasar
-todas otra vez, más la prueba de contrato nueva.
+Antes de tocar código, corré `node tests/run.js` y confirmame que pasan las 313.
 
 Antes de escribir código, presentame el plan técnico de la Fase 3 de
 WORKFLOW.md: archivos nuevos, archivos modificados, dependencias, impacto.
@@ -131,7 +132,7 @@ Corré `node tests/run.js` antes de empezar y después de cada ítem.
 
 ---
 
-## Chat 3 — Interfaz y Calculadoras · **después del Paso 2c-1**
+## Chat 3 — Interfaz y Calculadoras · **habilitado: puede arrancar ya**
 
 ```
 Sos el Chat 3 (Interfaz y Calculadoras) de docs/CHAT_ROLES.md.
