@@ -104,25 +104,26 @@ export const tests = [
   {
     name: 'determinantByCofactors reproduce valores conocidos',
     fn: () => {
-      assertClose(determinantByCofactors(new Matrix([[5]])), 5, 'Determinante de una 1x1.');
-      assertClose(determinantByCofactors(new Matrix([[1, 2], [3, 4]])), -2, 'Determinante 2x2.');
+      assertClose(determinantByCofactors(new Matrix([[5]])).value, 5, 'Determinante de una 1x1.');
+      assertClose(determinantByCofactors(new Matrix([[1, 2], [3, 4]])).value, -2, 'Determinante 2x2.');
       assertClose(
-        determinantByCofactors(new Matrix([[6, 1, 1], [4, -2, 5], [2, 8, 7]])),
+        determinantByCofactors(new Matrix([[6, 1, 1], [4, -2, 5], [2, 8, 7]])).value,
         -306,
         'Determinante 3x3 de bibliografía.',
       );
     },
   },
   {
-    name: 'determinantByCofactors devuelve un número, no un objeto',
+    name: 'determinantByCofactors devuelve { value, steps }, no un número pelado',
     fn: () => {
-      // Diferencia deliberada con determinantByGauss, documentada en API.md:
-      // el método de cofactores no produce pasos intermedios mostrables.
-      assertEqual(
-        typeof determinantByCofactors(new Matrix([[1, 2], [3, 4]])),
-        'number',
-        'Tipo del valor de retorno.',
-      );
+      // Desde ADR-007 §3.4 devuelve { value, steps } como el resto del
+      // álgebra, en vez de un número pelado: un número no puede llevar el
+      // procedimiento colgado. `steps` viene vacío hasta el Paso 2c-2, y esa
+      // es justamente la forma que el contrato congela.
+      const salida = determinantByCofactors(new Matrix([[1, 2], [3, 4]]));
+      assertEqual(typeof salida, 'object', 'Tipo del valor de retorno.');
+      assertEqual(typeof salida.value, 'number', 'Tipo de la clave value.');
+      assertTrue(Array.isArray(salida.steps), 'steps debería ser un arreglo.');
     },
   },
   {
@@ -215,7 +216,7 @@ export const tests = [
     name: 'cofactorMatrix reproduce el valor conocido de una 2x2',
     fn: () => {
       assertMatrixClose(
-        cofactorMatrix(new Matrix([[1, 2], [3, 4]])),
+        cofactorMatrix(new Matrix([[1, 2], [3, 4]])).matrix,
         [[4, -3], [-2, 1]],
         'Matriz de cofactores 2x2.',
       );
@@ -226,9 +227,9 @@ export const tests = [
     fn: () => {
       // Para la identidad, cada cofactor Cᵢᵢ es el determinante de la
       // identidad menor (1) y los de fuera de la diagonal son 0.
-      assertMatrixClose(cofactorMatrix(Matrix.identity(3)), Matrix.identity(3).toArray(), 'Cofactores de I.');
+      assertMatrixClose(cofactorMatrix(Matrix.identity(3)).matrix, Matrix.identity(3).toArray(), 'Cofactores de I.');
       assertMatrixClose(
-        cofactorMatrix(new Matrix([[1, 2, 3], [0, 1, 4], [5, 6, 0]])),
+        cofactorMatrix(new Matrix([[1, 2, 3], [0, 1, 4], [5, 6, 0]])).matrix,
         [[-24, 20, -5], [18, -15, 4], [5, -4, 1]],
         'Cofactores 3x3 de bibliografía.',
       );
@@ -238,13 +239,13 @@ export const tests = [
     name: 'adjugate es la transpuesta de la matriz de cofactores',
     fn: () => {
       assertMatrixClose(
-        adjugate(new Matrix([[1, 2], [3, 4]])),
+        adjugate(new Matrix([[1, 2], [3, 4]])).matrix,
         [[4, -2], [-3, 1]],
         'Adjunta 2x2.',
       );
       assertMatrixClose(
-        adjugate(new Matrix([[1, 2, 3], [0, 1, 4], [5, 6, 0]])),
-        cofactorMatrix(new Matrix([[1, 2, 3], [0, 1, 4], [5, 6, 0]])).transpose().toArray(),
+        adjugate(new Matrix([[1, 2, 3], [0, 1, 4], [5, 6, 0]])).matrix,
+        cofactorMatrix(new Matrix([[1, 2, 3], [0, 1, 4], [5, 6, 0]])).matrix.transpose().toArray(),
         'adj(A) = C(A)ᵀ.',
       );
     },
@@ -257,7 +258,7 @@ export const tests = [
       const a = new Matrix([[1, 2, 3], [0, 1, 4], [5, 6, 0]]);
       const det = determinantByGauss(a).value;
       assertMatrixClose(
-        a.multiply(adjugate(a)),
+        a.multiply(adjugate(a).matrix),
         Matrix.identity(3).scalarMultiply(det).toArray(),
         'A · adj(A) debería ser det(A) · I.',
       );
@@ -270,9 +271,9 @@ export const tests = [
       // una matriz de 1x1 es la matriz vacía, cuyo determinante vale 1 por
       // convención, así que el único cofactor es (+1)·1 = 1 y la adjunta de
       // [[a]] es [[1]], sea cual sea a.
-      assertMatrixClose(cofactorMatrix(new Matrix([[7]])), [[1]], 'Cofactores de una 1x1.');
-      assertMatrixClose(cofactorMatrix(new Matrix([[-3]])), [[1]], 'No depende del valor.');
-      assertMatrixClose(adjugate(new Matrix([[7]])), [[1]], 'Adjunta de una 1x1.');
+      assertMatrixClose(cofactorMatrix(new Matrix([[7]])).matrix, [[1]], 'Cofactores de una 1x1.');
+      assertMatrixClose(cofactorMatrix(new Matrix([[-3]])).matrix, [[1]], 'No depende del valor.');
+      assertMatrixClose(adjugate(new Matrix([[7]])).matrix, [[1]], 'Adjunta de una 1x1.');
     },
   },
   {
@@ -284,7 +285,7 @@ export const tests = [
       const a = new Matrix([[7]]);
       const det = determinantByGauss(a).value;
       assertMatrixClose(
-        adjugate(a).scalarMultiply(1 / det),
+        adjugate(a).matrix.scalarMultiply(1 / det),
         inverse(a).inverse.toArray(),
         'adj(A)/det(A) debería coincidir con la inversa por Gauss-Jordan.',
       );
@@ -294,7 +295,7 @@ export const tests = [
     name: 'A · adj(A) = det(A) · I también en una 1x1',
     fn: () => {
       const a = new Matrix([[7]]);
-      assertMatrixClose(a.multiply(adjugate(a)), [[7]], 'A · adj(A) en el caso base.');
+      assertMatrixClose(a.multiply(adjugate(a).matrix), [[7]], 'A · adj(A) en el caso base.');
     },
   },
   {

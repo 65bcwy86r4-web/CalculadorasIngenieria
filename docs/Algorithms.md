@@ -17,6 +17,15 @@ preocupación real, no solo teórica.
 
 ---
 
+**Sobre el procedimiento paso a paso.** Varias de estas implementaciones
+devuelven, además del resultado, un arreglo `steps` con el desarrollo para
+mostrar. La forma de ese arreglo está congelada por ADR-007 y documentada en
+`API.md`; acá se explica la matemática, no el formato. Donde una sección diga
+que el procedimiento todavía no está registrado, la función igual devuelve
+`steps: []`: la forma existe aunque el contenido no (ADR-007 §4).
+
+---
+
 # Parte I — Álgebra lineal numérica
 
 ## 1. Eliminación de Gauss (con pivoteo parcial)
@@ -145,7 +154,8 @@ y lo ofrece únicamente como recurso didáctico para ver la definición
 clásica "en acción", nunca como método de cálculo general.
 
 **Implementación:** `algebra/determinant.js::determinantByGauss` y
-`::determinantByCofactors`.
+`::determinantByCofactors`. Las dos devuelven `{ value, steps }`; el
+desarrollo de la expansión de Laplace es el Paso 2c-2 (ADR-007 §4).
 
 ---
 
@@ -212,7 +222,10 @@ que la identidad de Cramer siga valiendo en el caso base, porque
 resuelve en `cofactorMatrix` y no en `Matrix.minor` porque una `Matrix` de
 `0×0` no es un objeto válido del motor.
 
-**Implementación:** `algebra/inverse.js::cofactorMatrix`, `::adjugate`.
+**Implementación:** `algebra/inverse.js::cofactorMatrix`, `::adjugate`. Las
+dos devuelven `{ matrix, steps }` y no una `Matrix` pelada (ADR-007 §3.4): una
+instancia de `Matrix` no puede llevar el procedimiento colgado sin ensuciar la
+clase. El desarrollo cofactor por cofactor es el Paso 2c-2.
 
 ---
 
@@ -248,7 +261,9 @@ hacia atrás), cada uno `O(n²)` en vez de `O(n³)`.
 mismo proceso); `O(n²)` para resolver un sistema adicional una vez
 factorizada.
 
-**Implementación:** `algebra/lu.js::luDecomposition`. Lanza
+**Implementación:** `algebra/lu.js::luDecomposition`. Cada paso lleva
+`snapshot` con el estado de `U` después de aplicarlo, que es el factor que se
+está construyendo (ADR-007 §3.2). Lanza
 `SingularMatrixError` si no se encuentra pivote no nulo en alguna
 columna (matriz singular).
 
@@ -410,7 +425,7 @@ matrices simétricas por acá.
 **Complejidad:** `O(n³)` por iteración (una factorización QR completa),
 así que `O(k·n³)` en total para `k` iteraciones.
 
-**Implementación:** `algebra/eigen.js::eigenvaluesQR`. Es también el camino
+**Implementación:** `algebra/eigen-qr.js::eigenvaluesQR`. Es también el camino
 general de `eigenvalues`, para matrices no simétricas de orden mayor que 2.
 
 ---
@@ -456,7 +471,7 @@ negociable.
 
 **Referencia:** Golub & Van Loan, *Matrix Computations*, 4ª ed., §8.5.
 
-**Implementación:** `algebra/eigen.js::jacobiEigenDecomposition`. Lanza
+**Implementación:** `algebra/eigen-jacobi.js::jacobiEigenDecomposition`. Lanza
 `MathError` (`NOT_SYMMETRIC`) si la matriz no es simétrica: no es un método
 de propósito general y devolver algo igual sería peor que no devolver nada.
 
@@ -498,21 +513,31 @@ subdiagonal después de 500 iteraciones.
 
 **Complejidad:** `O(1)`. Sin iteración y sin error de truncamiento.
 
-**Implementación:** `algebra/eigen.js::eigenvalues2x2`.
+**Implementación:** `algebra/eigen-2x2.js::eigenvalues2x2`.
 
 ---
 
 ### 9.4 Qué función llamar
 
-| Función | Ejecuta | Cuándo |
-|---|---|---|
-| `eigenvalues` | el método que corresponda | por defecto: quiero los autovalores |
-| `eigenvaluesQR` | 9.1, siempre | quiero ver el QR corriendo |
-| `jacobiEigenDecomposition` | 9.2, solo simétricas | quiero Jacobi, o necesito los autovectores |
-| `eigenvalues2x2` | 9.3, solo 2×2 | quiero la forma cerrada, o distinguir el par complejo |
+| Función | Ejecuta | Archivo | Cuándo |
+|---|---|---|---|
+| `eigenvalues` | el método que corresponda | `algebra/eigen.js` | por defecto: quiero los autovalores |
+| `eigenvaluesQR` | 9.1, siempre | `algebra/eigen-qr.js` | quiero ver el QR corriendo |
+| `jacobiEigenDecomposition` | 9.2, solo simétricas | `algebra/eigen-jacobi.js` | quiero Jacobi, o necesito los autovectores |
+| `eigenvalues2x2` | 9.3, solo 2×2 | `algebra/eigen-2x2.js` | quiero la forma cerrada, o distinguir el par complejo |
 
 `eigenvalues` informa en `method` cuál eligió, para que una calculadora
-pueda explicar el procedimiento que efectivamente se ejecutó.
+pueda explicar el procedimiento que efectivamente se ejecutó, y devuelve en
+`steps` los del método que corrió, no unos propios.
+
+**Un archivo por método.** La división es de ADR-007 §3.5 y responde a dos
+cosas a la vez: `eigen.js` había llegado a 480 líneas contra el máximo de 500
+de `AI_RULES.md` §10 (deuda D14), y cada uno de los tres métodos es una
+responsabilidad completa —su propia teoría, sus propias limitaciones, su
+propio margen de mejora— que `ENGINEERING_GUIDE.md` §3 pide separar. En
+particular, deja lugar para D13 (desplazamientos de Wilkinson) sin volver a
+dividir nada. Los nombres públicos no cambiaron: se siguen importando todos
+desde `shared/math/index.js`.
 
 ---
 

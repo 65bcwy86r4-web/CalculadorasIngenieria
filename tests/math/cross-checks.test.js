@@ -65,7 +65,7 @@ export const tests = [
       // contra O(n!) por expansión de Laplace.
       INVERTIBLES.forEach(({ nombre, matriz }) => {
         const porGauss = determinantByGauss(matriz).value;
-        const porCofactores = determinantByCofactors(matriz);
+        const porCofactores = determinantByCofactors(matriz).value;
         assertClose(
           porGauss,
           porCofactores,
@@ -85,7 +85,7 @@ export const tests = [
       ];
       singulares.forEach((m, i) => {
         assertClose(determinantByGauss(m).value, 0, `Singular ${i} por Gauss.`, 1e-9);
-        assertClose(determinantByCofactors(m), 0, `Singular ${i} por cofactores.`, 1e-9);
+        assertClose(determinantByCofactors(m).value, 0, `Singular ${i} por cofactores.`, 1e-9);
       });
     },
   },
@@ -121,9 +121,9 @@ export const tests = [
       // (hallazgo H-05). Cerrado el 2026-09-13, entra al recorrido como
       // cualquier otra matriz de la lista.
       INVERTIBLES.forEach(({ nombre, matriz }) => {
-        const det = determinantByCofactors(matriz);
+        const det = determinantByCofactors(matriz).value;
         const porGaussJordan = inverse(matriz).inverse;
-        const porAdjunta = adjugate(matriz).scalarMultiply(1 / det);
+        const porAdjunta = adjugate(matriz).matrix.scalarMultiply(1 / det);
         assertMatrixClose(
           porGaussJordan,
           porAdjunta.toArray(),

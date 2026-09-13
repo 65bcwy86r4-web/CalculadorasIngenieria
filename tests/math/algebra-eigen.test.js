@@ -493,7 +493,7 @@ export const tests = [
     name: 'eigenvectors empareja cada autovalor con su vector',
     fn: () => {
       const a = new Matrix([[2, 1], [1, 2]]);
-      const pares = eigenvectors(a, [3, 1]);
+      const { vectors: pares } = eigenvectors(a, [3, 1]);
       assertEqual(pares.length, 2, 'Un par por autovalor.');
       pares.forEach(({ lambda, vector }) => {
         assertTrue(Array.isArray(vector), `Debería haber autovector para λ = ${lambda}.`);
@@ -512,7 +512,7 @@ export const tests = [
     fn: () => {
       // Propiedad del teorema espectral: si no se cumple, el cálculo está mal
       // aunque cada autovector por separado parezca razonable.
-      const pares = eigenvectors(new Matrix([[2, 1], [1, 2]]), [3, 1]);
+      const { vectors: pares } = eigenvectors(new Matrix([[2, 1], [1, 2]]), [3, 1]);
       const [v1, v2] = pares.map((p) => p.vector);
       const producto = v1[0] * v2[0] + v1[1] * v2[1];
       assertClose(producto, 0, 'El producto escalar debería ser nulo.', TOLERANCIA_ITERATIVA);

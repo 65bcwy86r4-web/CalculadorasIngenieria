@@ -79,11 +79,14 @@ export { choleskyDecomposition } from './algebra/cholesky.js';
 // Autovalores, autovectores y diagonalización. `eigenvalues` es la entrada
 // recomendada: despacha al método adecuado según el tipo de matriz. Los tres
 // métodos se exponen además por su nombre, para poder pedir uno en
-// particular y mostrarlo corriendo (ADR-005).
-export {
-  eigenvalues, eigenvaluesQR, jacobiEigenDecomposition, eigenvalues2x2,
-  eigenvectorFor, eigenvectors, diagonalize,
-} from './algebra/eigen.js';
+// particular y mostrarlo corriendo (ADR-005), y cada uno vive en su propio
+// archivo (ADR-007 §3.5). Los nombres públicos no cambiaron con esa
+// división: es exactamente lo que este punto único de entrada existe para
+// poder hacer sin romper a nadie.
+export { eigenvalues, eigenvectorFor, eigenvectors, diagonalize } from './algebra/eigen.js';
+export { eigenvaluesQR } from './algebra/eigen-qr.js';
+export { jacobiEigenDecomposition } from './algebra/eigen-jacobi.js';
+export { eigenvalues2x2 } from './algebra/eigen-2x2.js';
 
 /* ============================ INTERPOLACIÓN ============================ */
 

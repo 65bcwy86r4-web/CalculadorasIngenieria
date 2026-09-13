@@ -18,7 +18,7 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 
 | Componente | Estado | Chat responsable |
 |---|---|---|
-| Motor `shared/math/` | Completo y documentado. 35 archivos. Cubierto por la suite. Sin hallazgos abiertos. **95 exportaciones públicas**; nombres de archivo y de función al día con `CODING_STANDARDS.md` (Paso 2a, 2026-09-13). | 2 |
+| Motor `shared/math/` | Completo y documentado. **38 archivos** (`eigen.js` dividido por método). Cubierto por la suite. Sin hallazgos abiertos. 95 exportaciones públicas, sin altas ni bajas. **Contrato de `steps` congelado** (ADR-007, Paso 2c-1): toda función de álgebra devuelve un objeto plano con `steps`, y nueve lo traen vacío hasta el Paso 2c-2. | 2 |
 | `docs/` técnica | Architecture, API, Algorithms, Roadmap completos | 1 / 2 |
 | `docs/governance/` | 4 documentos rectores, versión 1.0 | 1 |
 | `tests/` | **306 pruebas en 16 archivos, todas pasan.** Pasos 1, 1b y 2a cerrados. | 5 |
@@ -52,12 +52,14 @@ principal.
 |---|---|---|
 | 2 | Paso 1b: corregir H-01 a H-05, con H-03 resuelto según ADR-004 | **Cerrado el 2026-09-13** |
 | 2 | Paso 2a: refactores de nombres (ADR-005, D3, D12) | **Cerrado el 2026-09-13** |
-| 2 | Paso 2c-1: congelar el contrato de `steps` (ADR-007) | Listo para arrancar |
+| 2 | Paso 2c-1: congelar el contrato de `steps` (ADR-007) | **Cerrado el 2026-09-13** |
 | — | — | Ninguna otra sesión abierta |
 
-El siguiente es el **Paso 2c-1** (Chat 2, sesión corta). Después el **Paso 3**
-(Chat 3 + 4) puede arrancar, incluso con el 2c-2 todavía pendiente: el contrato
-de ADR-007 está diseñado para que un `steps: []` no bloquee a la interfaz.
+**El contrato está congelado: el Paso 3 puede arrancar.** El Chat 3 tiene en
+`docs/API.md`, sección "El contrato de `steps`", todo lo que necesita para
+construir el panel de procedimiento, y la garantía de que la forma no cambia
+aunque nueve funciones todavía devuelvan `steps: []`. El Paso 2c-2 puede correr
+en paralelo sin tocar su zona.
 
 Los cuatro archivos viejos de `shared/math/errors/` se borraron y el Paso 2a
 quedó commiteado en `develop` el 2026-09-13. Verificado contra el repositorio
@@ -129,26 +131,27 @@ Detalle en la bitácora, §6.
 
 **El Paso 3 pasa a ser el siguiente.**
 
-### Paso 2c-1 — Congelar el contrato de `steps` · Chat 2 · **siguiente**
+### Paso 2c-1 — Congelar el contrato de `steps` · Chat 2 · ~~siguiente~~ **cerrado el 2026-09-13**
 
 Sesión corta. Los cambios de forma de [ADR-007](adr/ADR-007-contrato-de-steps.md)
 §3.4, la división de `eigen.js` de §3.5, la prueba de contrato de §3.6, y
 `API.md` y `Algorithms.md`. **Sin escribir ningún paso nuevo:** las funciones que
 hoy no registran procedimiento devuelven `steps: []`.
 
-Doce funciones cambian de forma de retorno, así que la suite se va a poner en
-rojo en bloque mientras dure el trabajo. Es lo esperado, no una regresión.
+Hecho. La suite pasó de 306 a **313 pruebas, todas en verde**, con
+`steps-contract.test.js` como prueba nueva. Detalle en la bitácora, §6.
 
-Cierra D14 (`eigen.js` en 480 líneas) con la división por método.
+Cerró D14 con la división por método: `eigen.js` (233 líneas),
+`eigen-jacobi.js` (201), `eigen-2x2.js` (91) y `eigen-qr.js` (84).
 
-### Paso 2c-2 — Escribir los procedimientos · Chat 2
+### Paso 2c-2 — Escribir los procedimientos · Chat 2 · **puede arrancar cuando se quiera**
 
 Llenar los pasos de las nueve funciones que hoy devuelven `steps: []`, por los
 cuatro grupos de [ADR-007](adr/ADR-007-contrato-de-steps.md) §4. Puede repartirse
 en varias sesiones y **puede correr en paralelo con el Paso 3**, porque el
 contrato ya está congelado y las zonas no se tocan.
 
-### Paso 3 — Versión 3a: calculadora de álgebra sobre el motor · Chat 3 + 4 · **después del 2c-1**
+### Paso 3 — Versión 3a: calculadora de álgebra sobre el motor · Chat 3 + 4 · **siguiente**
 
 Reescribir la calculadora de álgebra en `modules/algebra/`, importando
 exclusivamente desde `shared/math/index.js`. Es la prueba de fuego de la API
@@ -193,14 +196,102 @@ más trabajo.
 | D9 | `cubicSplineInterpolate` tiene 54 líneas de código efectivas, por encima del máximo de 50 de `AI_RULES.md` §10, sin la justificación técnica que ese artículo exige | `shared/math/interpolation/spline.js` | Baja |
 | ~~D10~~ | ~~`eigenvaluesQR` ya no siempre usa QR~~ | `shared/math/`, `docs/API.md` | **Resuelta el 2026-09-13** (Paso 2a, según ADR-005) |
 | ~~D12~~ | ~~Falta `hPa` en el catálogo de presión~~ | `shared/math/units/pressure.js` | **Resuelta el 2026-09-13** (Paso 2a) |
+| D16 | Los tipos de cierre `unique`, `infinite` e `incompatible` del vocabulario de ADR-007 §3.3 no están en uso como tipos de paso. Existen como discriminante del objeto de retorno de `solveSystem` (`{ type: 'unique', ... }`), que es otra cosa: ningún paso de la suite los lleva. El vocabulario los acepta y la prueba de contrato también, pero si la intención era que `solveSystem` cierre su procedimiento con un paso de ese tipo, eso es contenido y va en el Paso 2c-2 | `shared/math/algebra/gauss.js` | Baja — confirmar en Chat 1 |
 | D13 | El camino QR general sigue sin desplazamientos de Wilkinson: no converge con autovalores de igual módulo. Con ADR-005 dejó de ser un defecto oculto —`eigenvalues` no lo usa para simétricas y `eigenvaluesQR` lo anuncia, con una prueba que lo fija como comportamiento esperado— pero sigue siendo el más débil de los tres métodos | `shared/math/algebra/eigen.js` | Baja |
-| D14 | **Se cierra en el Paso 2c-1** dividiendo `eigen.js` por método (ADR-007 §3.5). `eigen.js` quedó en 480 líneas, contra el máximo de 500 de `AI_RULES.md` §10. Todavía cumple, pero la próxima incorporación —D13 es la candidata— lo pasa. Conviene decidir antes cómo se parte: un archivo por método (`jacobi.js`, `qr-eigen.js`) con `eigen.js` como despacho, o autovectores y diagonalización a un archivo propio. Es decisión de organización del motor, no de API | `shared/math/algebra/eigen.js` | Media — decidir en Chat 1 |
-| D15 | **Resuelto por [ADR-007](adr/ADR-007-contrato-de-steps.md) el 2026-09-13**; se ejecuta en los Pasos 2c-1 y 2c-2. El contrato de `steps` no es uniforme: 7 funciones de álgebra devuelven `{type, text, snapshot}`, `luDecomposition` devuelve `{type, text}` sin `snapshot`, y 9 no devuelven `steps` (`determinantByCofactors`, `adjugate`, `cofactorMatrix`, `qrDecomposition`, `choleskyDecomposition`, `eigenvalues`, `eigenvectors`, `diagonalize`, `conditionNumber`). Además el dato principal se llama distinto en cada una (`value`, `result`, `inverse`, `rank`, `solution`, `values`, `L/U/P`...). La V1 mostraba el procedimiento de las 25 operaciones; con esto la Versión 3a no puede igualarla en 9. Detectado en el relevamiento previo al Paso 3 | `shared/math/algebra/`, `docs/API.md` | **Alta — en curso (Paso 2c)** |
+| ~~D14~~ | ~~`eigen.js` cerca del máximo de 500 líneas de `AI_RULES.md` §10~~ | `shared/math/algebra/` | **Resuelta el 2026-09-13** (Paso 2c-1, división por método de ADR-007 §3.5) |
+| D15 | **Resuelto por [ADR-007](adr/ADR-007-contrato-de-steps.md) el 2026-09-13**; se ejecuta en los Pasos 2c-1 y 2c-2. El contrato de `steps` no es uniforme: 7 funciones de álgebra devuelven `{type, text, snapshot}`, `luDecomposition` devuelve `{type, text}` sin `snapshot`, y 9 no devuelven `steps` (`determinantByCofactors`, `adjugate`, `cofactorMatrix`, `qrDecomposition`, `choleskyDecomposition`, `eigenvalues`, `eigenvectors`, `diagonalize`, `conditionNumber`). Además el dato principal se llama distinto en cada una (`value`, `result`, `inverse`, `rank`, `solution`, `values`, `L/U/P`...). La V1 mostraba el procedimiento de las 25 operaciones; con esto la Versión 3a no puede igualarla en 9. Detectado en el relevamiento previo al Paso 3 | `shared/math/algebra/`, `docs/API.md` | **Media — la forma está congelada (Paso 2c-1, 2026-09-13); falta el contenido (Paso 2c-2)** |
 | D11 | `known-defects.test.js` quedó vacío (0 pruebas, el archivo con su explicación intacta) para que el próximo hallazgo tenga dónde anotarse. Si el Chat 5 prefiere borrarlo y recrearlo cuando haga falta, hay que sacarlo también de la estructura de `tests/README.md`, que es su zona | `tests/math/`, `tests/README.md` | Baja — decidir en Chat 5 |
 
 ---
 
 ## 6. Bitácora
+
+### 2026-09-13 — Contrato de `steps`: la forma (Paso 2c-1) · Chat 2
+
+**Resumen.** Se congeló la forma del procedimiento paso a paso, sin escribir ni
+un paso nuevo. Tres cosas:
+
+1. **Las doce formas de retorno de ADR-007 §3.4.** Cuatro funciones que
+   devolvían algo que no puede llevar `steps` pasaron a objeto plano:
+   `determinantByCofactors` → `{ value, steps }`, `cofactorMatrix` y `adjugate`
+   → `{ matrix, steps }`, `eigenvectors` → `{ vectors, steps }`. Las otras ocho
+   sumaron la clave. `luDecomposition` ganó `snapshot` en sus pasos.
+2. **La división de `eigen.js` por método (§3.5).** Cuatro archivos:
+   `eigen.js` con el despacho, los autovectores y la diagonalización;
+   `eigen-qr.js`, `eigen-jacobi.js` y `eigen-2x2.js` con un método cada uno.
+   Cierra D14.
+3. **`tests/math/steps-contract.test.js` (§3.6)**, la prueba genérica que hace
+   que el contrato falle solo cuando alguien se desvía.
+
+La suite pasó de **306 a 313 pruebas, todas en verde**.
+
+**Arquitectura.** Tres decisiones, más una consulta que quedó anotada:
+
+1. *Las funciones que delegan propagan los `steps` de quien llamaron, no
+   devuelven `[]`.* `conditionNumber` entrega los de la inversión que calcula
+   igual, `adjugate` los de la matriz de cofactores (o los de la inversa si usó
+   `det(A)·A⁻¹`), `eigenvalues` los del método que despachó, y `diagonalize`
+   encadena los de autovalores y autovectores. Lo que hay que mostrar es el
+   procedimiento que efectivamente corrió, no uno inventado en la capa de
+   arriba. Consultado y confirmado con el responsable del proyecto antes de
+   escribir, porque `conditionNumber` es la única que sale de esta sesión con
+   `steps` no vacío y eso roza la consigna de "ni un paso nuevo": son los pasos
+   de `inverse`, ya escritos y ya probados, no unos propios.
+2. *`eigenvectorFor` queda fuera del contrato.* Sigue devolviendo el vector
+   pelado o `null`. No está en la tabla de §3.4, y es una pieza de construcción
+   de `eigenvectors` —no una operación que una calculadora ofrezca por
+   separado—, así que darle una forma de retorno con `steps` sería aplicar el
+   contrato donde no hace falta.
+3. *`physics/tensors.js` cambió una línea y no cambió su forma.*
+   `principalDirections` consume `eigenvectors`, que ahora devuelve
+   `{ vectors, steps }`. ADR-007 §3.1 alcanza a `shared/math/algebra/` y
+   `principalDirections` no está en §3.4, así que se adaptó el consumo sin
+   tocar el retorno.
+
+**Compatibilidad.** La API pública sigue en 95 nombres: ni un alta, ni una baja,
+ni un renombre. Lo que cambió es la **forma de retorno** de cuatro de ellos, que
+es ruptura real y por eso se hizo ahora, con `modules/` vacío (ADR-006 §3). La
+división de `eigen.js` es invisible desde afuera: `index.js` exporta los mismos
+siete nombres, y `api-surface.test.js` pasó sin tocarse, que es exactamente la
+promesa del punto único de entrada de `Architecture.md` §6.
+
+**Verificación.**
+
+- Línea de base: 306 pruebas, todas pasan, Node v22.22.2. Al terminar: 313.
+- El rojo intermedio fue de **14 pruebas en 3 archivos**, no en bloque. Antes de
+  tocar código se midió qué se consume por destructuring —ocho de las doce
+  funciones, que por eso no rompen nada— y qué cambia de tipo. Las cuatro que
+  rompen son las que dejaron de ser un número, un arreglo o una `Matrix`.
+- **La prueba de contrato se validó mutando el motor, no leyéndola.** Tres
+  mutaciones, tres fallas en la prueba correcta: quitarle `steps` a
+  `qrDecomposition` (falla "toda función del contrato devuelve steps"), usar un
+  `type` fuera del vocabulario en `luDecomposition` (falla "cada paso tiene un
+  type del vocabulario cerrado"), y devolver `U.data` en vez de `U.toArray()`
+  como snapshot (falla "los pasos son datos, no referencias vivas"). Una prueba
+  de contrato que no se puede hacer fallar no protege nada.
+- Esa tercera mutación es la que más vale: un `snapshot` devuelto por
+  referencia haría que todos los pasos mostraran el estado final, y el
+  procedimiento sería una animación de un solo cuadro. No lo detecta ninguna
+  prueba de valores.
+- El vocabulario de `type` se transcribió del ADR y no se importó del motor: si
+  se importara, la prueba diría "el motor usa los tipos que el motor declara".
+  Se fijó además su tamaño en 13, para que agregar uno por las dudas falle acá.
+- Contra `AI_RULES.md` §10: los cuatro archivos de autovalores quedaron en 233,
+  201, 91 y 84 líneas, y la función más larga del motor tocado en 33 efectivas.
+  Sin `throw` genéricos, sin `var`, sin globales, sin DOM.
+
+**Próximos pasos.** El Paso 3 puede arrancar: el Chat 3 tiene el contrato
+documentado en `API.md` y no depende de que el 2c-2 esté hecho. El Paso 2c-2
+puede correr en paralelo, por los cuatro grupos de ADR-007 §4.
+
+Una consulta para el Chat 1, anotada como **D16**: los tipos de cierre `unique`,
+`infinite` e `incompatible` del vocabulario de §3.3 no están en uso como tipos
+de paso. Existen como discriminante del retorno de `solveSystem`, que es otra
+cosa. El vocabulario los acepta y no hace falta cambiar nada; la pregunta es si
+la intención era que `solveSystem` cierre su procedimiento con un paso de ese
+tipo, en cuyo caso es contenido y va en el 2c-2.
+
+---
 
 ### 2026-09-13 — Refactores de nombres del motor (Paso 2a) · Chat 2
 

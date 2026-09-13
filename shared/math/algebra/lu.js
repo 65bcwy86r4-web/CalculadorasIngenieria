@@ -16,6 +16,11 @@ import { DEFAULT_TOLERANCE } from '../utils/constants.js';
  * permutación.
  * @param {Matrix} matrix
  * @param {number} [tolerance=DEFAULT_TOLERANCE]
+ * Cada paso lleva `snapshot` con el estado de `U` después de aplicarlo: es
+ * el factor que se está construyendo, que es lo que ADR-007 §3.2 pide para
+ * las factorizaciones. `L` y `P` se completan al final y no tienen estado
+ * intermedio interesante que mostrar.
+ *
  * @returns {{ L: Matrix, U: Matrix, P: Matrix, steps: Array<Object> }}
  * @throws {DimensionError} si la matriz no es cuadrada
  * @throws {SingularMatrixError} si la matriz es singular
@@ -42,13 +47,13 @@ export function luDecomposition(matrix, tolerance = DEFAULT_TOLERANCE) {
       [U.data[col], U.data[maxRow]] = [U.data[maxRow], U.data[col]];
       [perm[col], perm[maxRow]] = [perm[maxRow], perm[col]];
       for (let c = 0; c < col; c++) [L.data[col][c], L.data[maxRow][c]] = [L.data[maxRow][c], L.data[col][c]];
-      steps.push({ type: 'swap', text: `Intercambio F${col + 1} ↔ F${maxRow + 1} (pivoteo parcial).` });
+      steps.push({ type: 'swap', text: `Intercambio F${col + 1} ↔ F${maxRow + 1} (pivoteo parcial).`, snapshot: U.toArray() });
     }
     for (let r = col + 1; r < n; r++) {
       const factor = U.data[r][col] / U.data[col][col];
       L.data[r][col] = factor;
       for (let c = col; c < n; c++) U.data[r][c] -= factor * U.data[col][c];
-      steps.push({ type: 'elim', text: `F${r + 1} → F${r + 1} − (${factor.toFixed(4)})·F${col + 1}` });
+      steps.push({ type: 'elim', text: `F${r + 1} → F${r + 1} − (${factor.toFixed(4)})·F${col + 1}`, snapshot: U.toArray() });
     }
   }
 

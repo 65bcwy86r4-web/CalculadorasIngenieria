@@ -1,19 +1,17 @@
 /**
  * algebra/eigen.js
  * ---------------------------------------------------------------------------
- * Responsabilidad única: autovalores, autovectores y diagonalización.
+ * Responsabilidad única: la entrada que elige método de autovalores, y todo
+ * lo que se construye sobre los autovalores ya calculados — autovectores y
+ * diagonalización.
  *
- * El cálculo de autovalores no usa un único algoritmo, porque no existe uno
- * que sea simultáneamente el más exacto y el más general. El archivo expone
- * por eso **una entrada que elige** y **cada método por su nombre**
- * (ADR-005):
+ * Los tres métodos viven cada uno en su archivo, porque cada uno es una
+ * responsabilidad completa con su propia teoría, sus propias limitaciones y
+ * su propio margen de mejora (ADR-007 §3.5):
  *
- *   | Función                    | Qué ejecuta                             |
- *   |----------------------------|-----------------------------------------|
- *   | eigenvalues                | despacha (ver la tabla de abajo)        |
- *   | eigenvaluesQR              | QR iterativo, siempre, sin despacho     |
- *   | jacobiEigenDecomposition   | Jacobi, solo simétricas                 |
- *   | eigenvalues2x2             | forma cerrada, solo 2x2                 |
+ *   algebra/eigen-qr.js       QR iterativo         eigenvaluesQR
+ *   algebra/eigen-jacobi.js   rotaciones de Jacobi jacobiEigenDecomposition
+ *   algebra/eigen-2x2.js      forma cerrada 2x2    eigenvalues2x2
  *
  * El despacho de `eigenvalues`:
  *
@@ -38,257 +36,28 @@
  *
  * `eigenvaluesQR` conserva esa limitación a propósito: es el algoritmo QR,
  * no "los autovalores". Quien lo llama pide ese método —para mostrarlo
- * corriendo, por ejemplo— y el nombre lo anuncia. Mejorarlo con
- * desplazamientos de Wilkinson es la deuda D13.
+ * corriendo, por ejemplo— y el nombre lo anuncia (ADR-005).
  *
  * Autor: Chat 2 — Motor
  * Fecha de creación: 2026-09-12
  * Modificado: 2026-09-13 — despacho por tipo (ADR-004); separación de
- *   `eigenvalues` y `eigenvaluesQR` (ADR-005)
- * Dependencias: ./matrix.js, ./qr.js, ./gauss.js, ./inverse.js,
- *   ../validation/matrix.js, ../errors/math-error.js, ../utils/constants.js
+ *   `eigenvalues` y `eigenvaluesQR` (ADR-005); división por método y
+ *   contrato de `steps` (ADR-007)
+ * Dependencias: ./matrix.js, ./gauss.js, ./inverse.js, ./eigen-qr.js,
+ *   ./eigen-jacobi.js, ./eigen-2x2.js, ../validation/matrix.js,
+ *   ../errors/math-error.js, ../utils/constants.js
  * ---------------------------------------------------------------------------
  */
 
 import { Matrix } from './matrix.js';
-import { qrDecomposition } from './qr.js';
 import { reducedRowEchelon } from './gauss.js';
 import { inverse } from './inverse.js';
+import { eigenvaluesQR } from './eigen-qr.js';
+import { jacobiEigenDecomposition } from './eigen-jacobi.js';
+import { eigenvalues2x2 } from './eigen-2x2.js';
 import { assertSquareMatrix } from '../validation/matrix.js';
 import { MathError } from '../errors/math-error.js';
-import {
-  DEFAULT_QR_ITERATIONS,
-  DEFAULT_MAX_ITERATIONS,
-  DEFAULT_TOLERANCE,
-} from '../utils/constants.js';
-
-/** Cantidad de barridos de Jacobi antes de darse por no convergido. */
-const JACOBI_MAX_ROTATIONS = DEFAULT_MAX_ITERATIONS * 10;
-
-/** Umbral del elemento subdiagonal por debajo del cual se considera nulo. */
-const SUBDIAGONAL_THRESHOLD = 1e-4;
-
-/* --------------------------------- Privadas --------------------------------- */
-
-/**
- * Ubica el elemento fuera de la diagonal de mayor valor absoluto en el
- * triángulo superior. Es el que Jacobi elige aniquilar en cada rotación
- * (estrategia clásica: siempre el mayor, no un barrido cíclico).
- * @param {number[][]} data
- * @returns {{ p: number, q: number, magnitude: number }}
- */
-function largestOffDiagonal(data) {
-  let p = 0;
-  let q = 1;
-  let magnitude = 0;
-  for (let row = 0; row < data.length; row++) {
-    for (let col = row + 1; col < data.length; col++) {
-      const value = Math.abs(data[row][col]);
-      if (value > magnitude) {
-        magnitude = value;
-        p = row;
-        q = col;
-      }
-    }
-  }
-  return { p, q, magnitude };
-}
-
-/**
- * Aplica in situ una rotación de Jacobi que anula el elemento (p, q) de
- * `data`, y acumula la misma rotación en `basis` para ir construyendo la
- * matriz de autovectores.
- * @param {number[][]} data - matriz simétrica en curso de diagonalización
- * @param {number[][]} basis - acumulador ortogonal (arranca en la identidad)
- * @param {number} p
- * @param {number} q
- * @returns {void}
- */
-function applyJacobiRotation(data, basis, p, q) {
-  const n = data.length;
-  const app = data[p][p];
-  const aqq = data[q][q];
-  const apq = data[p][q];
-  const angle = 0.5 * Math.atan2(2 * apq, aqq - app);
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-
-  for (let i = 0; i < n; i++) {
-    if (i === p || i === q) continue;
-    const aip = data[i][p];
-    const aiq = data[i][q];
-    data[i][p] = c * aip - s * aiq;
-    data[p][i] = data[i][p];
-    data[i][q] = s * aip + c * aiq;
-    data[q][i] = data[i][q];
-  }
-
-  data[p][p] = c * c * app - 2 * s * c * apq + s * s * aqq;
-  data[q][q] = s * s * app + 2 * s * c * apq + c * c * aqq;
-  // Se fuerza a cero en vez de recalcularlo: la rotación lo anula por
-  // construcción y el residuo sería solo ruido de punto flotante.
-  data[p][q] = 0;
-  data[q][p] = 0;
-
-  for (let i = 0; i < n; i++) {
-    const vip = basis[i][p];
-    const viq = basis[i][q];
-    basis[i][p] = c * vip - s * viq;
-    basis[i][q] = s * vip + c * viq;
-  }
-}
-
-/**
- * Ordena autovalores de mayor a menor arrastrando sus autovectores.
- * @param {number[]} values
- * @param {number[][]} vectors
- * @returns {{ values: number[], vectors: number[][] }}
- */
-function sortEigenpairs(values, vectors) {
-  const pairs = values
-    .map((value, index) => ({ value, vector: vectors[index] }))
-    .sort((a, b) => b.value - a.value);
-  return {
-    values: pairs.map((pair) => pair.value),
-    vectors: pairs.map((pair) => pair.vector),
-  };
-}
-
-/**
- * Columna `index` de `basis`, normalizada a norma 1.
- * @param {number[][]} basis
- * @param {number} index
- * @returns {number[]}
- */
-function normalizedColumn(basis, index) {
-  const column = basis.map((row) => row[index]);
-  let sumOfSquares = 0;
-  for (const value of column) sumOfSquares += value * value;
-  const norm = Math.sqrt(sumOfSquares) || 1;
-  return column.map((value) => value / norm);
-}
-
-/* ---------------------------------- Públicas ---------------------------------- */
-
-/**
- * Autovalores y autovectores de una matriz simétrica real por el método de
- * rotaciones de Jacobi: se aplica una sucesión de rotaciones ortogonales
- * que anulan de a un par de elementos fuera de la diagonal, hasta que la
- * matriz queda diagonal. Al ser una sucesión de transformaciones de
- * semejanza ortogonales, los autovalores se preservan exactamente y los
- * autovectores salen acumulados en la base.
- *
- * Converge siempre para matrices simétricas, incluso con autovalores
- * repetidos o de igual módulo, que es donde la iteración QR sin
- * desplazamiento falla.
- *
- * @param {Matrix} matrix - matriz simétrica
- * @param {number} [tolerance=DEFAULT_TOLERANCE] - umbral bajo el cual el mayor
- *   elemento fuera de la diagonal se considera nulo
- * @param {number} [maxRotations=JACOBI_MAX_ROTATIONS] - tope de rotaciones
- * @returns {{ values: number[], vectors: number[][], rotations: number, converged: boolean }}
- *   autovalores de mayor a menor y sus autovectores normalizados, en el mismo orden
- * @throws {DimensionError} si la matriz no es cuadrada
- * @throws {MathError} code 'NOT_SYMMETRIC' si la matriz no es simétrica
- * @example
- * jacobiEigenDecomposition(new Matrix([[2, 1], [1, 2]])).values; // [3, 1]
- * @example
- * // Corte puro: autovalores exactamente ±τ, donde el QR sin shift fallaba.
- * jacobiEigenDecomposition(new Matrix([[0, 50], [50, 0]])).values; // [50, -50]
- */
-export function jacobiEigenDecomposition(
-  matrix,
-  tolerance = DEFAULT_TOLERANCE,
-  maxRotations = JACOBI_MAX_ROTATIONS,
-) {
-  assertSquareMatrix(matrix, 'matrix');
-  if (!matrix.isSymmetric(tolerance)) {
-    throw new MathError(
-      'El método de Jacobi requiere una matriz simétrica.',
-      'NOT_SYMMETRIC',
-      { size: matrix.rows },
-    );
-  }
-
-  const n = matrix.rows;
-  const data = matrix.data.map((row) => [...row]);
-  const basis = Matrix.identity(n).data;
-  let rotations = 0;
-  let converged = false;
-
-  while (rotations < maxRotations) {
-    const { p, q, magnitude } = largestOffDiagonal(data);
-    if (n === 1 || magnitude <= tolerance) {
-      converged = true;
-      break;
-    }
-    applyJacobiRotation(data, basis, p, q);
-    rotations++;
-  }
-
-  const rawValues = data.map((row, i) => row[i]);
-  const rawVectors = rawValues.map((_, index) => normalizedColumn(basis, index));
-  const { values, vectors } = sortEigenpairs(rawValues, rawVectors);
-  return { values, vectors, rotations, converged };
-}
-
-/**
- * Autovalores de una matriz 2x2 por su polinomio característico:
- * λ² − tr(A)·λ + det(A) = 0, de donde λ = (tr ± √(tr² − 4·det)) / 2.
- *
- * Es exacto —no iterativo—, y distingue el caso de raíces complejas
- * conjugadas, que el motor no puede representar todavía (deuda D5): en ese
- * caso `values` viene vacío y el par se informa por partes en `realPart` e
- * `imaginaryPart`.
- *
- * @param {Matrix} matrix - matriz de 2x2
- * @param {number} [tolerance=DEFAULT_TOLERANCE] - margen con el que un
- *   discriminante levemente negativo se trata como raíz doble real
- * @returns {{ values: number[], hasComplexPair: boolean, realPart: number, imaginaryPart: number }}
- *   `values` de mayor a menor si las raíces son reales, vacío si son complejas
- * @throws {DimensionError} si la matriz no es cuadrada
- * @throws {MathError} code 'NOT_2X2' si la matriz no es de 2x2
- * @example
- * eigenvalues2x2(new Matrix([[0, 1], [1, 0]])).values; // [1, -1]
- * @example
- * // Rotación de 90°: autovalores ±i, sin parte real.
- * const giro = eigenvalues2x2(new Matrix([[0, -1], [1, 0]]));
- * giro.hasComplexPair; // true
- * giro.imaginaryPart;  // 1
- */
-export function eigenvalues2x2(matrix, tolerance = DEFAULT_TOLERANCE) {
-  assertSquareMatrix(matrix, 'matrix');
-  if (matrix.rows !== 2) {
-    throw new MathError(
-      'La forma cerrada de autovalores requiere una matriz de 2x2.',
-      'NOT_2X2',
-      { size: matrix.rows },
-    );
-  }
-
-  const [[a, b], [c, d]] = matrix.data;
-  const trace = a + d;
-  const determinant = a * d - b * c;
-  const discriminant = trace * trace - 4 * determinant;
-  const realPart = trace / 2;
-
-  if (discriminant < -tolerance) {
-    return {
-      values: [],
-      hasComplexPair: true,
-      realPart,
-      imaginaryPart: Math.sqrt(-discriminant) / 2,
-    };
-  }
-
-  const root = Math.sqrt(Math.max(0, discriminant)) / 2;
-  return {
-    values: [realPart + root, realPart - root],
-    hasComplexPair: false,
-    realPart,
-    imaginaryPart: 0,
-  };
-}
+import { DEFAULT_QR_ITERATIONS, DEFAULT_TOLERANCE } from '../utils/constants.js';
 
 /**
  * Autovalores reales de una matriz cuadrada, de mayor a menor. **Es la
@@ -302,6 +71,12 @@ export function eigenvalues2x2(matrix, tolerance = DEFAULT_TOLERANCE) {
  * una matriz simétrica es siempre `false`, porque el teorema espectral
  * garantiza autovalores reales.
  *
+ * `steps` son los del método que se despachó, no unos propios: lo que hay
+ * que mostrar de un cálculo de autovalores es el desarrollo del algoritmo
+ * que efectivamente corrió. Hoy vienen vacíos en los cuatro caminos; se
+ * llenan en el Paso 2c-2 (ADR-007 §4) y `eigenvalues` los hereda sin
+ * cambiar una línea.
+ *
  * Para pedir un algoritmo en particular —y ver sus iteraciones— están
  * `eigenvaluesQR`, `jacobiEigenDecomposition` y `eigenvalues2x2`.
  *
@@ -310,7 +85,7 @@ export function eigenvalues2x2(matrix, tolerance = DEFAULT_TOLERANCE) {
  *   convergencia de Jacobi
  * @param {number} [iterations=DEFAULT_QR_ITERATIONS] - pasos de la iteración
  *   QR; solo afecta al camino general
- * @returns {{ values: number[], method: string, hasComplexHint: boolean }}
+ * @returns {{ values: number[], method: string, hasComplexHint: boolean, steps: Array<Object> }}
  * @throws {DimensionError} si la matriz no es cuadrada
  * @example
  * eigenvalues(new Matrix([[2, 1], [1, 2]])).values; // [3, 1]
@@ -327,84 +102,47 @@ export function eigenvalues(
   const n = matrix.rows;
 
   if (n === 1) {
-    return { values: [matrix.data[0][0]], method: 'trivial', hasComplexHint: false };
+    return {
+      values: [matrix.data[0][0]],
+      method: 'trivial',
+      hasComplexHint: false,
+      steps: [],
+    };
   }
 
   if (matrix.isSymmetric(tolerance)) {
-    const { values } = jacobiEigenDecomposition(matrix, tolerance);
-    return { values, method: 'jacobi', hasComplexHint: false };
+    const { values, steps } = jacobiEigenDecomposition(matrix, tolerance);
+    return { values, method: 'jacobi', hasComplexHint: false, steps };
   }
 
   if (n === 2) {
-    const { values, hasComplexPair } = eigenvalues2x2(matrix, tolerance);
+    const { values, hasComplexPair, steps } = eigenvalues2x2(matrix, tolerance);
     // Con raíces complejas no hay autovalores reales que devolver. Se
     // informa la diagonal de la iterada QR, que es lo que el método
     // general daría, y el hint queda en true: es exacto acá, sale del
     // signo del discriminante y no de mirar la subdiagonal.
     const fallback = hasComplexPair ? eigenvaluesQR(matrix, iterations).values : values;
-    return { values: fallback, method: 'closed-form-2x2', hasComplexHint: hasComplexPair };
+    return {
+      values: fallback,
+      method: 'closed-form-2x2',
+      hasComplexHint: hasComplexPair,
+      steps,
+    };
   }
 
-  const { values, hasComplexHint } = eigenvaluesQR(matrix, iterations);
-  return { values, method: 'qr', hasComplexHint };
-}
-
-/**
- * Autovalores de una matriz cuadrada por el **algoritmo QR iterativo**,
- * siempre y sin despacho: Aₖ = QₖRₖ, Aₖ₊₁ = RₖQₖ. Como cada paso es una
- * transformación de semejanza ortogonal, `Aₖ` conserva los autovalores de
- * `A`, y bajo condiciones favorables converge a una forma triangular
- * superior cuya diagonal son esos autovalores.
- *
- * **Limitación del método, no defecto de esta función:** la iteración sin
- * desplazamiento no converge cuando dos autovalores tienen el mismo módulo
- * —`±λ`, o un par complejo conjugado—. En esos casos queda un bloque 2x2 sin
- * reducir, la diagonal no son los autovalores, y `hasComplexHint` se pone en
- * `true`. Si lo que se quiere son los autovalores y no este algoritmo, la
- * función es `eigenvalues`, que despacha a Jacobi en el caso simétrico.
- * Mejorar este camino con desplazamientos de Wilkinson es la deuda D13.
- *
- * `matrixT` es la iterada `Aₖ` al terminar, útil para mostrar el estado de
- * convergencia.
- *
- * @param {Matrix} matrix
- * @param {number} [iterations=DEFAULT_QR_ITERATIONS] - pasos de la iteración
- * @returns {{ values: number[], matrixT: Matrix, hasComplexHint: boolean }}
- *   diagonal de la iterada, de mayor a menor
- * @throws {DimensionError} si la matriz no es cuadrada
- * @example
- * eigenvaluesQR(new Matrix([[2, 1], [1, 2]])).values; // [3, 1]
- * @example
- * // Autovalores de igual módulo: el método no converge y lo informa.
- * const salida = eigenvaluesQR(new Matrix([[0, 50], [50, 0]]));
- * salida.values;          // [0, 0] — no son los autovalores
- * salida.hasComplexHint;  // true  — la iteración no triangularizó
- */
-export function eigenvaluesQR(matrix, iterations = DEFAULT_QR_ITERATIONS) {
-  assertSquareMatrix(matrix, 'matrix');
-  const n = matrix.rows;
-
-  let matrixT = matrix.clone();
-  for (let it = 0; it < iterations; it++) {
-    const { Q, R } = qrDecomposition(matrixT);
-    matrixT = R.multiply(Q);
-  }
-
-  const values = [];
-  for (let i = 0; i < n; i++) values.push(matrixT.data[i][i]);
-
-  let hasComplexHint = false;
-  for (let i = 0; i < n - 1; i++) {
-    if (Math.abs(matrixT.data[i + 1][i]) > SUBDIAGONAL_THRESHOLD) hasComplexHint = true;
-  }
-
-  values.sort((a, b) => b - a);
-  return { values, matrixT, hasComplexHint };
+  const { values, hasComplexHint, steps } = eigenvaluesQR(matrix, iterations);
+  return { values, method: 'qr', hasComplexHint, steps };
 }
 
 /**
  * Autovector asociado a un autovalor lambda: resuelve el sistema
  * homogéneo (A − λI)v = 0 mediante Gauss-Jordan sobre su núcleo.
+ *
+ * Devuelve el vector pelado y no un objeto con `steps` a propósito: es una
+ * pieza de construcción de `eigenvectors`, no una operación que una
+ * calculadora ofrezca por separado, y ADR-007 §3.4 no la alcanza. El
+ * procedimiento del cálculo de autovectores se muestra desde `eigenvectors`.
+ *
  * @param {Matrix} matrix
  * @param {number} lambda
  * @param {number} [tolerance=DEFAULT_TOLERANCE]
@@ -438,28 +176,38 @@ export function eigenvectorFor(matrix, lambda, tolerance = DEFAULT_TOLERANCE) {
  * Empareja cada autovalor con su autovector. El parámetro se llama `values`
  * y no `eigenvalues` para no tapar dentro de esta función a la función
  * homónima del módulo.
+ *
+ * `steps` viene vacío: el desarrollo de (A − λI)v = 0 para cada autovalor
+ * es el Paso 2c-2 (ADR-007 §4).
+ *
  * @param {Matrix} matrix
  * @param {number[]} values - autovalores, típicamente de `eigenvalues(A).values`
- * @returns {Array<{ lambda: number, vector: number[]|null }>}
+ * @returns {{ vectors: Array<{ lambda: number, vector: number[]|null }>, steps: Array<Object> }}
  * @example
- * eigenvectors(new Matrix([[2,1],[1,2]]), [3, 1]);
+ * eigenvectors(new Matrix([[2,1],[1,2]]), [3, 1]).vectors;
  */
 export function eigenvectors(matrix, values) {
-  return values.map((lambda) => ({ lambda, vector: eigenvectorFor(matrix, lambda) }));
+  const vectors = values.map((lambda) => ({ lambda, vector: eigenvectorFor(matrix, lambda) }));
+  return { vectors, steps: [] };
 }
 
 /**
  * Diagonalización A = P·D·P⁻¹: P se construye con los autovectores como
  * columnas y D con los autovalores correspondientes en la diagonal.
+ *
+ * `steps` encadena los del cálculo de autovalores y los del de
+ * autovectores, que son las dos mitades del procedimiento. Hoy vienen
+ * vacíos los dos; se llenan en el Paso 2c-2 (ADR-007 §4).
+ *
  * @param {Matrix} matrix
- * @returns {{ P: Matrix, D: Matrix, Pinv: Matrix }}
+ * @returns {{ P: Matrix, D: Matrix, Pinv: Matrix, steps: Array<Object> }}
  * @throws {MathError} code 'NOT_DIAGONALIZABLE' si P resulta singular
  * @example
  * const { P, D, Pinv } = diagonalize(new Matrix([[2,1],[1,2]]));
  */
 export function diagonalize(matrix) {
-  const { values } = eigenvalues(matrix);
-  const pairs = eigenvectors(matrix, values);
+  const { values, steps: valueSteps } = eigenvalues(matrix);
+  const { vectors: pairs, steps: vectorSteps } = eigenvectors(matrix, values);
   const n = matrix.rows;
 
   const P = Matrix.zeros(n, n);
@@ -476,5 +224,10 @@ export function diagonalize(matrix) {
     throw new MathError('La matriz de autovectores es singular: A no es diagonalizable (autovectores linealmente dependientes).', 'NOT_DIAGONALIZABLE', { cause: e.message });
   }
 
-  return { P, D: Matrix.diagonal(values), Pinv: invResult.inverse };
+  return {
+    P,
+    D: Matrix.diagonal(values),
+    Pinv: invResult.inverse,
+    steps: [...valueSteps, ...vectorSteps],
+  };
 }

@@ -47,12 +47,16 @@ export function determinantByGauss(matrix, tolerance = DEFAULT_TOLERANCE) {
  * Expansión por cofactores (recursiva), solo con fines teóricos/didácticos.
  * Limitada a n <= 7 por su complejidad O(n!); para matrices más grandes
  * usar determinantByGauss.
+ * `steps` viene vacío: el desarrollo de la expansión de Laplace es el Paso
+ * 2c-2 (ADR-007 §4). La clave existe desde ya para que la interfaz pueda
+ * escribirse contra el contrato definitivo.
+ *
  * @param {Matrix} matrix
- * @returns {number}
+ * @returns {{ value: number, steps: Array<Object> }}
  * @throws {DimensionError} si no es cuadrada
  * @throws {MathError} si n > 7 (code 'TOO_LARGE_FOR_COFACTORS')
  * @example
- * determinantByCofactors(new Matrix([[1,2],[3,4]])); // -2
+ * determinantByCofactors(new Matrix([[1,2],[3,4]])).value; // -2
  */
 export function determinantByCofactors(matrix) {
   assertSquareMatrix(matrix, 'matrix');
@@ -63,7 +67,7 @@ export function determinantByCofactors(matrix) {
       { size: matrix.rows }
     );
   }
-  return expand(matrix);
+  return { value: expand(matrix), steps: [] };
 }
 
 /** @param {Matrix} matrix @returns {number} @private */

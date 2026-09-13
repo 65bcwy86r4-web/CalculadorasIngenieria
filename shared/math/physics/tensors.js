@@ -108,7 +108,8 @@ export function principalValues(tensor) {
  */
 export function principalDirections(tensor) {
   const values = principalValues(tensor);
-  return eigenvectors(tensor, values).map((p) => ({ value: p.lambda, direction: p.vector }));
+  const { vectors } = eigenvectors(tensor, values);
+  return vectors.map((p) => ({ value: p.lambda, direction: p.vector }));
 }
 
 /**

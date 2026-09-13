@@ -57,18 +57,22 @@ export function inverse(matrix, tolerance = DEFAULT_TOLERANCE) {
  * correcta. Se resuelve acá y no en Matrix.minor porque una Matrix de 0x0
  * no es un objeto válido del motor y no tiene sentido construirla.
  *
+ * `steps` viene vacío: el desarrollo cofactor por cofactor es el Paso 2c-2
+ * (ADR-007 §4). La clave existe desde ya para que la interfaz pueda
+ * escribirse contra el contrato definitivo.
+ *
  * @param {Matrix} matrix
- * @returns {Matrix}
+ * @returns {{ matrix: Matrix, steps: Array<Object> }}
  * @throws {DimensionError} si no es cuadrada
  * @example
- * cofactorMatrix(new Matrix([[1,2],[3,4]])).toArray(); // [[4,-3],[-2,1]]
+ * cofactorMatrix(new Matrix([[1,2],[3,4]])).matrix.toArray(); // [[4,-3],[-2,1]]
  * @example
- * cofactorMatrix(new Matrix([[7]])).toArray(); // [[1]]
+ * cofactorMatrix(new Matrix([[7]])).matrix.toArray(); // [[1]]
  */
 export function cofactorMatrix(matrix) {
   assertSquareMatrix(matrix, 'matrix');
   const n = matrix.rows;
-  if (n === 1) return new Matrix([[1]]);
+  if (n === 1) return { matrix: new Matrix([[1]]), steps: [] };
 
   const data = Array.from({ length: n }, () => new Array(n).fill(0));
   for (let i = 0; i < n; i++) {
@@ -79,7 +83,7 @@ export function cofactorMatrix(matrix) {
       data[i][j] = sign * detMinor;
     }
   }
-  return new Matrix(data);
+  return { matrix: new Matrix(data), steps: [] };
 }
 
 /**
@@ -87,38 +91,49 @@ export function cofactorMatrix(matrix) {
  * Para n > 6 se calcula de forma eficiente como adj(A) = det(A)·A⁻¹, en
  * vez de recalcular n² menores por cofactores (mismo resultado, mucho
  * más rápido para matrices grandes).
+ *
+ * `steps` son los de la matriz de cofactores cuando se calcula por esa vía,
+ * o los de la inversa cuando se usa det(A)·A⁻¹: en los dos casos es el
+ * procedimiento que efectivamente se ejecutó, no uno propio.
+ *
  * @param {Matrix} matrix
- * @returns {Matrix}
+ * @returns {{ matrix: Matrix, steps: Array<Object> }}
  * @throws {DimensionError} si no es cuadrada
  * @throws {SingularMatrixError} si es singular y n > 6 (no se puede usar det(A)·A⁻¹)
  * @example
- * adjugate(new Matrix([[1,2],[3,4]])).toArray(); // [[4,-2],[-3,1]]
+ * adjugate(new Matrix([[1,2],[3,4]])).matrix.toArray(); // [[4,-2],[-3,1]]
  * @example
- * adjugate(new Matrix([[7]])).toArray(); // [[1]] — adj(A)/det(A) da [[1/7]]
+ * adjugate(new Matrix([[7]])).matrix.toArray(); // [[1]] — adj(A)/det(A) da [[1/7]]
  */
 export function adjugate(matrix) {
   assertSquareMatrix(matrix, 'matrix');
   if (matrix.rows <= 6) {
-    return cofactorMatrix(matrix).transpose();
+    const { matrix: cofactors, steps } = cofactorMatrix(matrix);
+    return { matrix: cofactors.transpose(), steps };
   }
   const det = determinantByGauss(matrix).value;
-  const { inverse: inv } = inverse(matrix);
-  return inv.scalarMultiply(det);
+  const { inverse: inv, steps } = inverse(matrix);
+  return { matrix: inv.scalarMultiply(det), steps };
 }
 
 /**
  * Número de condición aproximado: κ(A) = ‖A‖_F · ‖A⁻¹‖_F. Valores altos
  * indican que el sistema Ax=b es numéricamente sensible a pequeños
  * errores en A o b.
+ *
+ * `steps` son los de la inversión que esta función necesita calcular igual:
+ * el procedimiento del número de condición **es** el de la inversa más el
+ * cociente de normas. No se agregan pasos propios acá (Paso 2c-2, ADR-007 §4).
+ *
  * @param {Matrix} matrix
- * @returns {{ value: number, normA: number, normInverse: number }}
+ * @returns {{ value: number, normA: number, normInverse: number, steps: Array<Object> }}
  * @throws {SingularMatrixError} si la matriz es singular (condición infinita)
  * @example
  * conditionNumber(Matrix.identity(3)).value; // 3 (‖I‖_F · ‖I‖_F = √3·√3)
  */
 export function conditionNumber(matrix) {
-  const { inverse: inv } = inverse(matrix);
+  const { inverse: inv, steps } = inverse(matrix);
   const normA = matrix.frobeniusNorm();
   const normInverse = inv.frobeniusNorm();
-  return { value: normA * normInverse, normA, normInverse };
+  return { value: normA * normInverse, normA, normInverse, steps };
 }
