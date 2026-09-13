@@ -21,7 +21,7 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 | Motor `shared/math/` | Completo y documentado. 35 archivos. Cubierto por la suite. Sin hallazgos abiertos. **95 exportaciones públicas**; nombres de archivo y de función al día con `CODING_STANDARDS.md` (Paso 2a, 2026-09-13). | 2 |
 | `docs/` técnica | Architecture, API, Algorithms, Roadmap completos | 1 / 2 |
 | `docs/governance/` | 4 documentos rectores, versión 1.0 | 1 |
-| `tests/` | **298 pruebas en 16 archivos, todas pasan.** Paso 1 y 1b cerrados. | 5 |
+| `tests/` | **306 pruebas en 16 archivos, todas pasan.** Pasos 1, 1b y 2a cerrados. | 5 |
 | `modules/` | **Vacío.** Ninguna calculadora consume el motor todavía. | 3 |
 | `css/`, `assets/`, `js/` | Vacíos | 4 / 3 |
 | `legacy/` | Congelado. No se importa desde ningún lado. | — |
@@ -42,6 +42,7 @@ principal.
 | [ADR-004](adr/ADR-004-correccion-autovalores.md) | H-03 se corrige portando Jacobi y el 2×2 analítico desde `legacy/`, no parcheando el QR. `eigen.js` se toca una sola vez. | 2026-09-13 |
 | [ADR-005](adr/ADR-005-api-de-autovalores.md) | `eigenvalues` es la entrada que despacha; `eigenvaluesQR` vuelve a ser el QR explícito. Cada nombre dice su método. | 2026-09-13 |
 | [ADR-006](adr/ADR-006-interfaz-antes-que-port.md) | La calculadora de álgebra (Paso 3) va antes que el resto del port. Una capacidad del motor se escribe cuando una calculadora la pide. | 2026-09-13 |
+| [ADR-007](adr/ADR-007-contrato-de-steps.md) | Contrato único de `steps`: forma del paso, vocabulario cerrado de `type`, y `type`+`text` como mínimo suficiente para renderizar. Se congela la forma antes de llenar el contenido. | 2026-09-13 |
 
 ---
 
@@ -51,22 +52,19 @@ principal.
 |---|---|---|
 | 2 | Paso 1b: corregir H-01 a H-05, con H-03 resuelto según ADR-004 | **Cerrado el 2026-09-13** |
 | 2 | Paso 2a: refactores de nombres (ADR-005, D3, D12) | **Cerrado el 2026-09-13** |
+| 2 | Paso 2c-1: congelar el contrato de `steps` (ADR-007) | Listo para arrancar |
 | — | — | Ninguna otra sesión abierta |
 
-El siguiente es el **Paso 3** (Chat 3 + 4): la calculadora de álgebra.
+El siguiente es el **Paso 2c-1** (Chat 2, sesión corta). Después el **Paso 3**
+(Chat 3 + 4) puede arrancar, incluso con el 2c-2 todavía pendiente: el contrato
+de ADR-007 está diseñado para que un `steps: []` no bloquee a la interfaz.
 
-**Pendiente del responsable del proyecto:** el Paso 2a renombró los cuatro
-archivos de `shared/math/errors/` a kebab-case. El puente con la notebook
-escribe archivos pero no los borra, así que **los cuatro archivos viejos siguen
-en la carpeta** y hay que sacarlos antes de commitear:
-
-```
-git rm shared/math/errors/MathError.js shared/math/errors/DimensionError.js ^
-       shared/math/errors/SingularMatrixError.js shared/math/errors/InterpolationError.js
-```
-
-Mientras estén, el motor funciona igual —ningún archivo los importa, verificado—
-pero son código muerto.
+Los cuatro archivos viejos de `shared/math/errors/` se borraron y el Paso 2a
+quedó commiteado en `develop` el 2026-09-13. Verificado contra el repositorio
+remoto: git sigue solo los cuatro nombres en kebab-case, sin rastro de los
+PascalCase — que es el error clásico al renombrar desde Windows, donde el
+sistema de archivos no distingue mayúsculas y git puede quedar seguiendo las dos
+versiones.
 
 ---
 
@@ -131,7 +129,26 @@ Detalle en la bitácora, §6.
 
 **El Paso 3 pasa a ser el siguiente.**
 
-### Paso 3 — Versión 3a: calculadora de álgebra sobre el motor · Chat 3 + 4 · **siguiente**
+### Paso 2c-1 — Congelar el contrato de `steps` · Chat 2 · **siguiente**
+
+Sesión corta. Los cambios de forma de [ADR-007](adr/ADR-007-contrato-de-steps.md)
+§3.4, la división de `eigen.js` de §3.5, la prueba de contrato de §3.6, y
+`API.md` y `Algorithms.md`. **Sin escribir ningún paso nuevo:** las funciones que
+hoy no registran procedimiento devuelven `steps: []`.
+
+Doce funciones cambian de forma de retorno, así que la suite se va a poner en
+rojo en bloque mientras dure el trabajo. Es lo esperado, no una regresión.
+
+Cierra D14 (`eigen.js` en 480 líneas) con la división por método.
+
+### Paso 2c-2 — Escribir los procedimientos · Chat 2
+
+Llenar los pasos de las nueve funciones que hoy devuelven `steps: []`, por los
+cuatro grupos de [ADR-007](adr/ADR-007-contrato-de-steps.md) §4. Puede repartirse
+en varias sesiones y **puede correr en paralelo con el Paso 3**, porque el
+contrato ya está congelado y las zonas no se tocan.
+
+### Paso 3 — Versión 3a: calculadora de álgebra sobre el motor · Chat 3 + 4 · **después del 2c-1**
 
 Reescribir la calculadora de álgebra en `modules/algebra/`, importando
 exclusivamente desde `shared/math/index.js`. Es la prueba de fuego de la API
@@ -177,7 +194,8 @@ más trabajo.
 | ~~D10~~ | ~~`eigenvaluesQR` ya no siempre usa QR~~ | `shared/math/`, `docs/API.md` | **Resuelta el 2026-09-13** (Paso 2a, según ADR-005) |
 | ~~D12~~ | ~~Falta `hPa` en el catálogo de presión~~ | `shared/math/units/pressure.js` | **Resuelta el 2026-09-13** (Paso 2a) |
 | D13 | El camino QR general sigue sin desplazamientos de Wilkinson: no converge con autovalores de igual módulo. Con ADR-005 dejó de ser un defecto oculto —`eigenvalues` no lo usa para simétricas y `eigenvaluesQR` lo anuncia, con una prueba que lo fija como comportamiento esperado— pero sigue siendo el más débil de los tres métodos | `shared/math/algebra/eigen.js` | Baja |
-| D14 | `eigen.js` quedó en 480 líneas, contra el máximo de 500 de `AI_RULES.md` §10. Todavía cumple, pero la próxima incorporación —D13 es la candidata— lo pasa. Conviene decidir antes cómo se parte: un archivo por método (`jacobi.js`, `qr-eigen.js`) con `eigen.js` como despacho, o autovectores y diagonalización a un archivo propio. Es decisión de organización del motor, no de API | `shared/math/algebra/eigen.js` | Media — decidir en Chat 1 |
+| D14 | **Se cierra en el Paso 2c-1** dividiendo `eigen.js` por método (ADR-007 §3.5). `eigen.js` quedó en 480 líneas, contra el máximo de 500 de `AI_RULES.md` §10. Todavía cumple, pero la próxima incorporación —D13 es la candidata— lo pasa. Conviene decidir antes cómo se parte: un archivo por método (`jacobi.js`, `qr-eigen.js`) con `eigen.js` como despacho, o autovectores y diagonalización a un archivo propio. Es decisión de organización del motor, no de API | `shared/math/algebra/eigen.js` | Media — decidir en Chat 1 |
+| D15 | **Resuelto por [ADR-007](adr/ADR-007-contrato-de-steps.md) el 2026-09-13**; se ejecuta en los Pasos 2c-1 y 2c-2. El contrato de `steps` no es uniforme: 7 funciones de álgebra devuelven `{type, text, snapshot}`, `luDecomposition` devuelve `{type, text}` sin `snapshot`, y 9 no devuelven `steps` (`determinantByCofactors`, `adjugate`, `cofactorMatrix`, `qrDecomposition`, `choleskyDecomposition`, `eigenvalues`, `eigenvectors`, `diagonalize`, `conditionNumber`). Además el dato principal se llama distinto en cada una (`value`, `result`, `inverse`, `rank`, `solution`, `values`, `L/U/P`...). La V1 mostraba el procedimiento de las 25 operaciones; con esto la Versión 3a no puede igualarla en 9. Detectado en el relevamiento previo al Paso 3 | `shared/math/algebra/`, `docs/API.md` | **Alta — en curso (Paso 2c)** |
 | D11 | `known-defects.test.js` quedó vacío (0 pruebas, el archivo con su explicación intacta) para que el próximo hallazgo tenga dónde anotarse. Si el Chat 5 prefiere borrarlo y recrearlo cuando haga falta, hay que sacarlo también de la estructura de `tests/README.md`, que es su zona | `tests/math/`, `tests/README.md` | Baja — decidir en Chat 5 |
 
 ---

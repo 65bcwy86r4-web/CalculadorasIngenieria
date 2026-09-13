@@ -70,35 +70,42 @@ Sos el Chat 2 (Motor) de docs/CHAT_ROLES.md.
 Tu zona es shared/math/, docs/API.md, docs/Algorithms.md y tests/math/.
 No tocás modules/, css/, js/, index.html ni assets/. El motor no conoce el DOM.
 
-Tu tarea es el Paso 2a del HANDOFF: tres refactores de nombres, sin
-capacidades nuevas. Hay que hacerlos ahora porque todavía no hay ninguna
-calculadora que consuma el motor, así que el costo de ruptura es cero
-(ADR-006 §3).
+Tu tarea es el Paso 2c-1 del HANDOFF: congelar el contrato de `steps`.
+La especificación completa está en docs/adr/ADR-007-contrato-de-steps.md y no
+tenés que decidir nada de diseño: leela entera antes de escribir una línea.
 
-1. La API de autovalores, según docs/adr/ADR-005-api-de-autovalores.md.
-   eigenvalues pasa a ser la entrada que despacha; eigenvaluesQR vuelve a ser el
-   QR explícito, sin despacho. Arrastra una línea en physics/tensors.js
-   (principalValues y principalDirections pasan a llamar a eigenvalues), la
-   reescritura de las pruebas de despacho, y API.md y Algorithms.md.
-   Ojo con esto: al volver eigenvaluesQR a ser QR puro, vuelve a no converger
-   con autovalores de igual módulo. Eso NO es reabrir H-03: es la limitación
-   real del método, ahora bajo un nombre que la anuncia. Escribile una prueba
-   que la documente como comportamiento esperado.
+Alcance de ESTA sesión, y nada más:
 
-2. D3: renombrar los cuatro archivos de shared/math/errors/ a kebab-case
-   (math-error.js, dimension-error.js, singular-matrix-error.js,
-   interpolation-error.js) y actualizar todos los imports.
+1. Los cambios de forma de retorno de ADR-007 §3.4. Doce funciones. Cuatro de
+   ellas hoy devuelven algo que no puede llevar steps (un número, un arreglo, o
+   una instancia de Matrix) y pasan a devolver un objeto plano.
 
-3. D12: agregar hPa al catálogo de units/pressure.js. Está mbar, que es
-   numéricamente idéntico, pero la aeronáutica usa hectopascales y la
-   calculadora ISA está en el roadmap.
+2. La división de eigen.js de ADR-007 §3.5, en cuatro archivos por método.
+   shared/math/index.js tiene que seguir exportando exactamente los mismos
+   nombres: para cualquier consumidor no cambia nada. Cierra D14.
 
-Antes de tocar código, corré `node tests/run.js` y confirmame que pasan las 298.
-Esa es tu línea de base. Al terminar tienen que pasar todas otra vez, salvo las
-que reescribas a propósito por ADR-005.
+3. La prueba de contrato de ADR-007 §3.6, en tests/math/steps-contract.test.js.
 
-Cada entrega incluye el archivo completo, las pruebas, y docs/API.md y
-docs/Algorithms.md actualizados en la misma entrega.
+4. docs/API.md y docs/Algorithms.md al día, en esta misma entrega.
+
+Lo que NO va en esta sesión: **no escribas ni un paso nuevo.** Las nueve
+funciones que hoy no registran procedimiento devuelven `steps: []`, y punto. El
+contenido es el Paso 2c-2. Esta sesión congela la forma para que el Chat 3 pueda
+arrancar contra un contrato estable; si te ponés a escribir procedimientos, esa
+separación se pierde y el Chat 3 sigue esperando.
+
+Dos cosas para tener presentes:
+
+- El vocabulario de `type` de ADR-007 §3.3 es cerrado. Si te parece que falta
+  uno, no lo agregues: decímelo y lo resuelve el Chat 1.
+- La regla que gobierna todo el contrato es que la interfaz tiene que poder
+  renderizar cualquier procedimiento con solo `type` y `text`. `snapshot` y
+  `detail` son opcionales siempre.
+
+Antes de tocar código, corré `node tests/run.js` y confirmame que pasan las 306.
+Durante el trabajo la suite se va a poner en rojo en bloque, porque doce
+funciones cambian de forma: eso es lo esperado. Al terminar tienen que pasar
+todas otra vez, más la prueba de contrato nueva.
 
 Antes de escribir código, presentame el plan técnico de la Fase 3 de
 WORKFLOW.md: archivos nuevos, archivos modificados, dependencias, impacto.
@@ -124,7 +131,7 @@ Corré `node tests/run.js` antes de empezar y después de cada ítem.
 
 ---
 
-## Chat 3 — Interfaz y Calculadoras · **después del Paso 2a**
+## Chat 3 — Interfaz y Calculadoras · **después del Paso 2c-1**
 
 ```
 Sos el Chat 3 (Interfaz y Calculadoras) de docs/CHAT_ROLES.md.
@@ -137,6 +144,13 @@ paramos hasta que el Chat 1 lo resuelva.
 Tu tarea es el Paso 3 del HANDOFF (Versión 3a): reescribir la calculadora de
 álgebra en modules/algebra/, importando exclusivamente desde
 shared/math/index.js.
+
+Leé docs/adr/ADR-007-contrato-de-steps.md antes de diseñar el panel de
+procedimiento. La regla que más te importa: podés renderizar cualquier paso con
+solo `type` y `text`; `snapshot` y `detail` son opcionales y no podés depender
+de ellos. Algunas operaciones todavía devuelven `steps: []` porque su
+procedimiento se escribe en el Paso 2c-2 — mostralas como "sin desarrollo
+disponible" y seguí; no las bloquees ni implementes el procedimiento vos.
 
 legacy/calculadora-algebra-v1/ es la referencia funcional: 25 operaciones,
 procedimiento paso a paso, historial, exportación, pegado desde planilla,
