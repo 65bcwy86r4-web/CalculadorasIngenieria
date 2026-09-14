@@ -1,0 +1,233 @@
+/*
+ * base.css
+ * ---------------------------------------------------------------------------
+ * Descripción: reset, tipografía base y comportamiento global del documento.
+ *
+ *   Solo actúa sobre elementos HTML y sobre el documento. No define ni una
+ *   sola clase: eso es `components.css`. La frontera importa porque este
+ *   archivo se carga en todas las páginas de la plataforma, incluidas las que
+ *   todavía no existen.
+ *
+ *   Decisiones que conviene tener escritas:
+ *
+ *   - `font-variant-numeric: tabular-nums` se aplica en la raíz, no en las
+ *     celdas. Una calculadora es casi toda números en columna: matrices,
+ *     snapshots de procedimiento, autovalores, historial. Con cifras
+ *     proporcionales las columnas no alinean y un `−0.333333` al lado de un
+ *     `1` se lee torcido justo donde el usuario está comparando. Ponerlo en la
+ *     raíz hace que la regla valga también para las calculadoras que se
+ *     escriban después, sin que nadie tenga que acordarse.
+ *
+ *   - El foco se dibuja con `:focus-visible`, no con `:focus`. Con `:focus` el
+ *     anillo aparece al hacer clic con el mouse, que es ruido; con
+ *     `:focus-visible` aparece cuando el usuario navega por teclado, que es
+ *     cuando hace falta. No se elimina el `outline` sin reemplazarlo: quitar
+ *     el indicador de foco sin poner otro deja la página inutilizable sin
+ *     mouse.
+ *
+ *   - Las transiciones se anulan bajo `prefers-reduced-motion`. Las duraciones
+ *     son tokens, así que basta con ponerlas en cero una vez acá en vez de
+ *     repetir la consulta de medios en cada componente.
+ *
+ * Autor: Chat 4 — Diseño y UX
+ * Fecha de creación: 2026-09-14
+ * Dependencias: tokens.css (debe cargarse antes).
+ * ---------------------------------------------------------------------------
+ */
+
+/* ============================================================================
+   1. RESET
+   ============================================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Ancla de `rem`. No se toca el tamaño de raíz: pisar el 16px por defecto
+     rompe el zoom tipográfico que el usuario configuró en su navegador. */
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body,
+h1, h2, h3, h4, h5, h6,
+p, figure, blockquote,
+dl, dd, ol, ul {
+  margin: 0;
+}
+
+ol, ul {
+  padding: 0;
+  list-style: none;
+}
+
+img, svg, video, canvas {
+  display: block;
+  max-width: 100%;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* ============================================================================
+   2. DOCUMENTO
+   ============================================================================ */
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background-color: var(--surface-page);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-normal);
+
+  /* Ver el encabezado: es la decisión tipográfica que más se nota en una
+     calculadora y la que más fácil se olvida. */
+  font-variant-numeric: tabular-nums;
+
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ============================================================================
+   3. TIPOGRAFÍA BASE
+   ============================================================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+h1 { font-size: var(--text-2xl); }
+h2 { font-size: var(--text-xl); }
+h3 { font-size: var(--text-lg); }
+h4 { font-size: var(--text-md); }
+h5, h6 { font-size: var(--text-sm); }
+
+p {
+  text-wrap: pretty;
+}
+
+code, kbd, samp, pre {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  color: var(--accent-strong);
+}
+
+hr {
+  height: 1px;
+  margin: var(--space-5) 0;
+  border: none;
+  background-color: var(--border-soft);
+}
+
+::selection {
+  background-color: var(--accent-wash);
+  color: var(--text-primary);
+}
+
+/* ============================================================================
+   4. FOCO
+   ============================================================================ */
+
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* El navegador dibuja `:focus` por defecto en algunos controles aun cuando el
+   foco no sea visible por teclado. Se anula solo donde `:focus-visible` ya se
+   encarga, nunca de forma general. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ============================================================================
+   5. MOVIMIENTO
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ============================================================================
+   6. IMPRESIÓN
+   La exportación a PDF de las calculadoras usa la impresión del navegador
+   (`services/exporters.js` llena `#printArea` y llama a `window.print()`), así
+   que las reglas de impresión son parte del producto, no un agregado.
+   ============================================================================ */
+
+@media print {
+  :root {
+    /* Forzar el tema claro al imprimir: el tema oscuro gasta tinta y queda
+       ilegible en papel. */
+    color-scheme: light;
+  }
+
+  body {
+    background: #ffffff;
+    color: #000000;
+    font-size: 11pt;
+  }
+
+  a {
+    color: #000000;
+    text-decoration: underline;
+  }
+}

@@ -23,7 +23,9 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 | `docs/governance/` | 4 documentos rectores, versión 1.0 | 1 |
 | `tests/` | **313 pruebas en 17 archivos, todas pasan.** Pasos 1, 1b, 2a y 2c-1 cerrados. Incluye `steps-contract.test.js`. | 5 |
 | `modules/` | **`algebra/` completa (Versión 3a, Paso 3).** 21 archivos, 27 operaciones, importando solo desde `shared/math/index.js`. Primer consumidor real de la API pública. Sin estilos: `css/algebra.css` todavía no existe (Chat 4). | 3 |
-| `css/`, `assets/`, `js/` | Vacíos | 4 / 3 |
+| `css/` | **Sistema de diseño completo (Paso 3b).** 5 archivos, ninguno por encima de las 500 líneas efectivas: `tokens.css` (tokens en tres capas, temas claro y oscuro con `light-dark()`), `base.css` (reset y tipografía), `components.css` (cáscara y controles), `results.css` (bloques de resultado, avisos y procedimiento) y `algebra.css` (lo específico del módulo). Todo par color/superficie medido ≥ 4.5:1. El 404 de `css/algebra.css` está cerrado | 4 |
+| `assets/` | Vacío, y por ahora corresponde: el sistema usa stack de fuentes del sistema y no hay imágenes | 4 |
+| `js/` | Vacío. Es el Paso 4 | 3 |
 | `legacy/` | Congelado. No se importa desde ningún lado. | — |
 
 **Versión del roadmap en curso:** transición de Versión 2 (motor) a Versión 3
@@ -54,7 +56,7 @@ principal.
 | 2 | Paso 2a: refactores de nombres (ADR-005, D3, D12) | **Cerrado el 2026-09-13** |
 | 2 | Paso 2c-1: congelar el contrato de `steps` (ADR-007) | **Cerrado el 2026-09-13** |
 | 3 | Paso 3: calculadora de álgebra en `modules/algebra/` (Versión 3a) | **Cerrado el 2026-09-13** |
-| 4 | Paso 3b: sistema de diseño y estilos de la calculadora | Confirmado el 2026-09-14, listo para arrancar |
+| 4 | Paso 3b: sistema de diseño y estilos de la calculadora | **Cerrado el 2026-09-14** |
 | 3 | Paso 3c: ganchos de estado para el panel (pedido del Chat 4) | Aprobado el 2026-09-14, no bloquea al 3b |
 | — | — | Ninguna otra sesión abierta |
 
@@ -181,7 +183,10 @@ pública alcanzó tal cual está. Detalle en la bitácora, §6.
 
 **Falta la mitad del Chat 4**, que es lo que sigue de este paso:
 
-### Paso 3b — Sistema de diseño y estilos de la calculadora · Chat 4 · **siguiente**
+### Paso 3b — Sistema de diseño y estilos de la calculadora · Chat 4 · ~~siguiente~~ **cerrado el 2026-09-14**
+
+Los cuatro archivos escritos y verificados en navegador. El 404 de
+`css/algebra.css` está cerrado. Detalle en la bitácora, §6.
 
 *Propuesto por el Chat 3, **confirmado por el Chat 1 el 2026-09-14**, con el
 alcance ampliado y precisado abajo tras la consulta del Chat 4.*
@@ -303,10 +308,183 @@ más trabajo.
 | D17 | `docs/API.md`, sección "El contrato de `steps`", sigue listando `unique`, `infinite` e `incompatible` en la tabla de vocabulario de `type` — 13 tipos, donde ADR-007 §3.3 enmendado tiene 10. Es la misma confusión que cerró D16, que quedó corregida en el ADR y no en API.md. **Evidencia:** `API.md` líneas 47–57 contra `ADR-007` §3.3 y su enmienda. La calculadora se implementó contra los 10 del ADR. Detectado por el Chat 3 en el relevamiento del Paso 3 | `docs/API.md` | Media — Chat 2 |
 | D18 | Los métodos de la clase `Matrix` quedan fuera del contrato de `steps`: `transpose`, `trace`, `add`, `subtract`, `multiply`, `scalarMultiply`, `power`, `frobeniusNorm`, las cinco de clasificación y los constructores `identity`/`diagonal` devuelven una `Matrix` o un número pelados, sin clave `steps` —ni siquiera vacía—. No es un defecto: ADR-007 §3.4 no los alcanza. Pero son **12 de las 27 operaciones** de la calculadora, que quedan sin desarrollo posible, y la V1 sí mostraba procedimiento para varias (por ejemplo, el producto elemento a elemento). Si se quiere que lo tengan, es decisión del Chat 1 y trabajo del Chat 2. La interfaz ya las distingue de las que tienen `steps: []` | `shared/math/algebra/matrix.js`, ADR-007 | Baja — decidir en Chat 1 |
 | D11 | `known-defects.test.js` quedó vacío (0 pruebas, el archivo con su explicación intacta) para que el próximo hallazgo tenga dónde anotarse. Si el Chat 5 prefiere borrarlo y recrearlo cuando haga falta, hay que sacarlo también de la estructura de `tests/README.md`, que es su zona | `tests/math/`, `tests/README.md` | Baja — decidir en Chat 5 |
+| D19 | `css/algebra.css` encadena `tokens.css`, `base.css` y `components.css` con `@import`, que los descarga en serie. Se hizo así porque `modules/algebra/index.html` enlaza una sola hoja y ese archivo es del Chat 3: evitar un pedido de cambio de HTML por algo que el CSS resuelve solo. Cuando el Paso 4 arme la cáscara compartida, el HTML debería enlazar las cuatro hojas en paralelo y estos `@import` desaparecer | `css/algebra.css`, `modules/*/index.html` | Baja — Paso 4 |
+| D20 | En pantallas angostas el menú lateral no puede ser un cajón superpuesto. El único estado que le pone el JavaScript es `.is-hidden` (`app.js:408`) y su ausencia significa "visible", así que un cajón arrancaría abierto tapando la pantalla en cada carga. Queda resuelto como tira desplegable en el flujo, con altura acotada y desplazamiento propio: utilizable, pero come 15 rem de alto arriba del contenido. Un cajón de verdad necesita un segundo estado del Chat 3 (`.sidebar.is-open`, cerrado por defecto bajo cierto ancho). **Evidencia:** `components.css` §13 y `app.js:408`. *Propuesta del Chat 4 al Chat 3; la confirma el responsable del proyecto o el Chat 1* | `modules/algebra/app.js`, `css/components.css` | Media — Paso 4 |
+| D21 | No hay interruptor de tema. Los temas funcionan por `prefers-color-scheme` y `tokens.css` deja listos los ganchos `[data-theme="light"]` y `[data-theme="dark"]` en `<html>`, pero nada los escribe. Quien tenga el sistema operativo en claro no puede ver el tema oscuro y viceversa. El control es zona del Chat 3 y pertenece a la cáscara del Paso 4, no a esta calculadora | `js/`, `index.html` | Baja — Paso 4 |
 
 ---
 
 ## 6. Bitácora
+
+### 2026-09-14 — Sistema de diseño y estilos de la calculadora (Paso 3b) · Chat 4
+
+**Resumen.** `css/` deja de estar vacío. Cinco archivos —`tokens.css` (100
+líneas efectivas), `base.css` (132), `components.css` (460), `results.css` (274)
+y `algebra.css` (180)— con el sistema de diseño de la plataforma extraído de la
+calculadora de álgebra, no diseñado en el aire. El 404 de `css/algebra.css` está
+cerrado: la calculadora se ve con formato en los dos temas y hasta 400 px de
+ancho.
+
+El reparto aprobado en §4 era de cuatro archivos. Son cinco porque
+`components.css` daba 727 líneas efectivas, por encima del máximo de 500 de
+`AI_RULES.md` §10, y el corte existía solo: lo que dibuja la aplicación
+—cáscara, menú, botones, paneles, historial— quedó en `components.css`, y lo que
+dibuja la salida del motor —las seis primitivas de bloque y el procedimiento de
+ADR-007— pasó a `results.css`. Los dos son igual de reutilizables entre
+disciplinas, así que el reparto de §4 no cambia de sentido: se parte en dos la
+casilla "lo reutilizable", no se agrega una casilla nueva. Se prefirió partir
+antes que justificar el exceso, como habilita §10, porque la justificación
+habría sido "es mucho CSS" y eso no es una razón técnica.
+
+No se tocó una sola línea de JavaScript ni de HTML. Las clases salieron del
+contrato del comentario de `modules/algebra/index.html` y de una extracción por
+búsqueda sobre `app.js`, `view/*.js` y `services/*.js`, para comprobar que el
+comentario dijera la verdad. La dice, con una omisión: `.print-document`, que ya
+quedó anotada en el Paso 3c.
+
+**Arquitectura.** Seis decisiones, más la partición de `components.css` que se
+explica arriba.
+
+1. *El acento de plataforma y el de disciplina son dos colores distintos.*
+   `tokens.css` declara un índigo institucional (`#3a49b8` claro / `#8fa4ff`
+   oscuro) y `algebra.css` lo reemplaza por el teal de la consola científica del
+   legacy. La alternativa —que el teal fuera a la vez el color de la plataforma
+   y el del álgebra— deja el mecanismo de sobreescritura por módulo sin
+   ejercitar hasta la calculadora número dos, que es código especulativo del
+   tipo que ADR-006 existe para evitar. Hoy se ejercita: si se borraran las
+   cuatro líneas de `algebra.css` §1, la calculadora se pondría índigo y
+   seguiría andando. Esa es la prueba de que la separación es real.
+
+2. *El anillo de foco NO usa `--accent`.* Es el único elemento visible que se
+   queda con el índigo de plataforma incluso dentro del álgebra, y es a
+   propósito: si el indicador de foco cambiara de color con cada disciplina,
+   habría que volver a medir su contraste en cada módulo nuevo. Se mide una vez
+   y vale para todos.
+
+3. *Los temas se resuelven con `light-dark()`, no duplicando el bloque de roles
+   en un `@media (prefers-color-scheme)` más un `[data-theme]`.* Esa duplicación
+   es la fuente clásica de temas desincronizados: alguien agrega un rol en un
+   bloque y se olvida del otro, y el defecto solo aparece en el tema que esa
+   persona no usa. Con `light-dark()` cada rol existe una vez y los dos valores
+   están uno al lado del otro. Suma además `color-scheme`, que hace que los
+   controles nativos y las barras de desplazamiento sigan el tema sin una sola
+   regla escrita a mano. Verificado en Chromium 141 antes de adoptarlo.
+
+4. *Tres capas de tokens, y ningún componente nombra una primitiva.*
+   Primitivas (`--ink-750`, `--teal-300`) → roles (`--surface-panel`,
+   `--text-muted`) → acento por disciplina. Un `#1f1f31` dentro de
+   `components.css` sería un elemento que dejó de responder al tema.
+
+5. *Los diez tipos de paso de ADR-007 §3.3 se agrupan en tres tratamientos, no
+   en diez colores.* Transformaciones de la matriz (`swap`, `scale`, `elim`,
+   `rotate`, `normalize`) en acento; cierre (`final`) en verde; nota (`info`)
+   con borde punteado; cálculo (`expand`, `compute`, `iterate`) con el estilo
+   base. Diez tonos no significan nada y obligan a medir diez contrastes nuevos
+   cada vez que el ADR agregue un tipo. Un `type` desconocido cae en el estilo
+   base, que es la misma decisión que tomó el Chat 3 en `steps-view.js`:
+   preferir un rótulo neutro a ocultar el paso.
+
+6. *Stack de fuentes del sistema.* El legacy declara Space Grotesk, Inter y
+   JetBrains Mono, que solo funcionan en las máquinas que ya las tengan
+   instaladas: `AI_RULES.md` §11 prohíbe CDN y `assets/` no tiene archivos de
+   fuente. Y `font-variant-numeric: tabular-nums` en la raíz, no en las celdas:
+   una calculadora es casi toda números en columna, y con cifras proporcionales
+   un `−0.333333` al lado de un `1` no alinea justo donde el usuario está
+   comparando. Ponerlo en la raíz hace que valga también para las calculadoras
+   que se escriban después, sin que nadie tenga que acordarse.
+
+**Compatibilidad.** No se modificó `shared/math/`, `modules/`, `js/`, `tests/`,
+`index.html`, `docs/API.md`, `docs/Algorithms.md`, `docs/adr/`,
+`docs/governance/` ni `legacy/`. La API pública no se tocó y no se pidió que
+cambiara. Fuera de `css/`, el único archivo modificado es este HANDOFF, en las
+secciones que `CHAT_ROLES.md` §6 asigna al chat que trabaja: la fila propia de
+§1, la fila propia de §3, el estado del propio paso en §4, tres ítems agregados
+en §5 y esta entrada. No se reordenó el plan ni se editó lo que escribió otro
+chat.
+
+Los cuatro estilos del Paso 3c (`.panel-empty--placeholder`, `--pending`,
+`--unavailable`, `--history`) están escritos y verificados. Hasta que el Chat 3
+aplique los modificadores, los cuatro casos caen en el estilo base, que es el
+del marcador de posición —el más neutro de los cuatro y el que menos miente si
+le toca a otro caso—. La calculadora no se rompe ni antes ni después del 3c.
+
+**Verificación.** Servido con `python3 -m http.server` y manejado en Chromium
+141 con Playwright — no leído. El contraste se midió sobre los colores
+**computados en el navegador**, componiendo los lavados translúcidos contra su
+fondo real, no sobre los valores del archivo: un `rgba(79,214,192,.14)` sobre
+panel no es el color que dice el código.
+
+- **Carga limpia en los dos temas: cero pedidos fallidos, cero errores de
+  consola.** El 404 de `css/algebra.css` que dejó el Paso 3 no existe más.
+- `light-dark()` resuelve en los dos esquemas: `--surface-page` da
+  `rgb(243,244,249)` en claro y `rgb(20,20,31)` en oscuro, y `body` toma
+  `tabular-nums` y `system-ui`.
+- **22 pares color/superficie medidos con contenido real en pantalla**, en los
+  dos temas. Todos ≥ 4.5:1. El más ajustado es el texto atenuado sobre la
+  página en tema claro, 4.64:1.
+- **Dos fallas encontradas midiendo, no leyendo, y corregidas:** el texto de
+  `.panel-empty--pending` daba **4.04:1** en tema oscuro —el secundario sobre el
+  lavado de acento— y pasó a texto primario, 9.76:1; y la paleta clara heredada
+  del legacy fallaba en cuatro roles (acento 3.38, warn 3.47, ok 4.36, atenuado
+  3.34 sobre blanco), corregidos antes de escribir una sola regla.
+- **Caso de estrés, 15×15 por Gauss: 103 pasos, 102 snapshots, 22.950 celdas**,
+  renderizado en 1,8 s sin errores. Destapó un defecto de grilla que solo
+  aparece a esa escala: con la pista `1fr`, cuyo mínimo automático es el tamaño
+  del contenido, el snapshot de 773 px ensanchaba el paso y arrastraba al panel
+  entero a desplazarse en horizontal — el texto de los 103 pasos se iba de
+  pantalla junto con la matriz. Con `minmax(0, 1fr)` y el snapshot convertido en
+  su propio contenedor de desplazamiento (`display: block`, porque sobre
+  `display: table` el `overflow` no se aplica), el paso queda en 486 px, el
+  snapshot muestra 296 de 773 y se desplaza solo, y el panel no se mueve.
+- **Los tres estados del panel se verificaron distinguibles**, inyectando los
+  modificadores del Paso 3c que todavía no existen en el JavaScript: marcador de
+  posición sin borde ni fondo; pendiente con borde punteado de acento, fondo
+  lavado y rótulo "EN PREPARACIÓN"; no disponible con borde sólido tenue, fondo
+  de campo y cursiva, sin color ni rótulo. Uno se lee como obra anunciada y el
+  otro como cerrado, que es exactamente la distinción que pide el paso.
+- **Los once tipos de rótulo se renderizaron juntos**, los diez del vocabulario
+  de ADR-007 §3.3 más uno inventado. El inventado cae en el estilo base y se ve
+  como un paso de cálculo: no rompe nada, que es la garantía que el Chat 3 pidió
+  para el vocabulario abierto hacia adelante.
+- **400 px, los dos temas, con resultado en pantalla: cero desborde
+  horizontal**, `document.scrollWidth === 400`, y ningún elemento fuera del
+  viewport salvo el cajón de historial, que está cerrado por diseño
+  (`translateX(100%)`). Los dos paneles se apilan, los pasos pasan a una
+  columna y la zona de matrices se estira.
+- **Foco por teclado:** ocho `Tab` seguidos, los ocho con anillo visible de
+  3 px. `:focus-visible` y no `:focus`, así que no aparece al hacer clic.
+- **Historial:** abre a 384 px de ancho, pegado al borde derecho, con la
+  superposición en opacidad 1.
+- Un detalle que solo se ve mirando: las tablas de matriz se estiraban a todo el
+  ancho del panel —una 3×3 ocupaba los 518 px disponibles y las columnas
+  quedaban separadas por media pantalla, que es lo contrario de lo que una
+  matriz comunica—. Con `width: max-content` quedó en 236 px. Y el rótulo de
+  paso lleva `min-width: 7rem` para que el texto de los 103 pasos arranque en la
+  misma x: cada `.step` es su propia grilla, así que la alineación entre pasos
+  no la puede dar una pista `auto`.
+
+**Próximos pasos.** El Paso 3c (Chat 3), que no bloquea nada de lo entregado. Y
+el Paso 2c-2 (Chat 2), con el invariante ya escrito: cuando cierre,
+`.panel-empty--pending` no debería tener usuarios en álgebra.
+
+Tres cosas que este chat deja anotadas y no hizo por estar fuera de su zona o de
+su alcance: **D19**, los `@import` encadenados de `algebra.css`, que conviene
+reemplazar por cuatro `<link>` cuando el Paso 4 arme la cáscara compartida;
+**D20**, el menú lateral en pantallas angostas, que hoy es una tira en el flujo
+porque `.is-hidden` es el único estado que le pone el JavaScript y un cajón
+superpuesto arrancaría abierto tapando la pantalla; y **D21**, que no hay
+interruptor de tema, así que quien tenga el sistema operativo en claro no puede
+ver el oscuro. Las tres son del Paso 4 y las dos últimas necesitan al Chat 3.
+
+Y una observación para el Chat 5, que es suya y no mía: el sistema tiene ahora
+una regla verificable que ninguna prueba cubre —todo par color/superficie
+≥ 4.5:1—. Es medible con el mismo Chromium que ya usa la suite, recorriendo los
+elementos de una página servida y componiendo los fondos translúcidos. Sería la
+primera prueba sobre `css/`, y atraparía el caso que más fácil se escapa: un
+token que alguien ajusta por gusto y que rompe el contraste de un componente que
+no miró.
+
+---
 
 ### 2026-09-13 — Calculadora de álgebra sobre el motor (Paso 3) · Chat 3
 
