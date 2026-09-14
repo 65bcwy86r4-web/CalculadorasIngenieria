@@ -55,6 +55,7 @@ principal.
 | 2 | Paso 2c-1: congelar el contrato de `steps` (ADR-007) | **Cerrado el 2026-09-13** |
 | 3 | Paso 3: calculadora de álgebra en `modules/algebra/` (Versión 3a) | **Cerrado el 2026-09-13** |
 | 4 | Paso 3b: sistema de diseño y estilos de la calculadora | Confirmado el 2026-09-14, listo para arrancar |
+| 3 | Paso 3c: ganchos de estado para el panel (pedido del Chat 4) | Aprobado el 2026-09-14, no bloquea al 3b |
 | — | — | Ninguna otra sesión abierta |
 
 **El contrato está congelado: el Paso 3 puede arrancar.** El Chat 3 tiene en
@@ -226,6 +227,40 @@ Reglas del paso:
   el Paso 2c-2. Ese estado tiene que verse deliberado, no roto.
 - **Se verifica mirando**, no leyendo el CSS: sirviendo el proyecto y abriéndolo
   en un navegador, en los dos temas y también a ~400 px de ancho.
+
+### Paso 3c — Ganchos de estado para el panel · Chat 3 · *pedido del Chat 4, aprobado por el Chat 1 el 2026-09-14*
+
+`view/steps-view.js` renderiza **tres estados distintos con la misma clase**
+`.panel-empty` (líneas 155-160, `renderMessage`), y `view/history-view.js` la usa
+para un cuarto (historial vacío). Lo único que los diferencia es el texto, así
+que desde CSS no se pueden distinguir.
+
+No es cosmético: el usuario no tiene cómo saber si a una operación le falta el
+desarrollo **porque todavía no se escribió** (vuelve más adelante y va a estar) o
+**porque no aplica** (no va a estar nunca). Son dos mensajes con consecuencias
+opuestas y hoy se ven idénticos.
+
+Cambio pedido, mínimo y sin tocar estructura ni lógica: un parámetro más en
+`renderMessage(container, message, modifier)`, y el `className` pasa a
+`panel-empty panel-empty--${modifier}`.
+
+| Modificador | Mensaje |
+|---|---|
+| `--placeholder` | `PLACEHOLDER_MESSAGE` — todavía no calculaste nada |
+| `--pending` | `EMPTY_CONTRACT_MESSAGE` — el motor no escribió el desarrollo (Paso 2c-2) |
+| `--unavailable` | `NOT_APPLICABLE_MESSAGE` — la operación no lleva desarrollo (D18) |
+| `--history` | historial vacío (`history-view.js:74`) |
+
+El Chat 4 escribe el CSS de los cuatro desde ya; hasta que esto se aplique, los
+cuatro caen en el estilo base.
+
+**Invariante para después:** cuando cierre el Paso 2c-2, `--pending` no debería
+tener ningún usuario en `algebra`. Si todavía lo tiene, algo del 2c-2 no cerró.
+
+Aprovechá para corregir una omisión del contrato de clases: el comentario de
+`modules/algebra/index.html` no lista `.print-document`, que arma
+`services/exporters.js` dentro de `#printArea`. Detectada por el Chat 4 al
+contrastar el comentario contra el código.
 
 ### Paso 2b — El resto del port desde el motor v1 · Chat 2
 
