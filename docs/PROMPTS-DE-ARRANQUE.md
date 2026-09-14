@@ -25,6 +25,40 @@ Antes de responder nada, leé en este orden:
 5. docs/CHAT_ROLES.md
 6. docs/HANDOFF.md
 
+CÓMO TRABAJAR EN ESTE PROYECTO SIN GASTAR DE MÁS
+
+El puente de shell contra mi máquina NO monta (probado con la app reiniciada y
+la notebook reiniciada, en sesiones nuevas y viejas). No lo intentes ni pierdas
+tiempo diagnosticándolo: trabajás copiando archivos y escribiendo de vuelta.
+Eso hace que algunas acciones cuesten caro, así que:
+
+1. ANTES DE TRAER NADA DEL DISCO, CLONÁ EL REPOSITORIO en tu propio contenedor:
+   git clone --branch develop https://github.com/65bcwy86r4-web/CalculadorasIngenieria
+   Traer el árbol así es órdenes de magnitud más barato que pedir los archivos
+   uno por uno. Del disco traé SOLO lo que todavía no esté pusheado — preguntame
+   si no estás seguro de qué falta subir.
+
+2. El clon es para LEER, ANALIZAR y CORRER COSAS (node tests/run.js, scripts de
+   verificación, búsquedas). Los cambios se escriben SIEMPRE sobre la carpeta de
+   mi máquina, nunca sobre el clon: lo que edites en el clon se pierde.
+
+3. NO RELEAS un archivo que ya leíste en esta sesión. Es el desperdicio más
+   común y el más evitable.
+
+4. Para ANALIZAR o VERIFICAR, corré un script en tu contenedor y mirá la salida,
+   en vez de leer archivos enteros. Un grep o un script de Node que imprime diez
+   líneas cuesta mil veces menos que leer veinte archivos.
+
+5. Para CAMBIOS MECÁNICOS sobre muchos archivos (renombres, reemplazos masivos),
+   escribime un script y lo corro yo en la terminal de VS Code. No leas y
+   reescribas veinte archivos completos para cambiar una línea en cada uno.
+
+6. Si tenés que traer archivos del disco, traelos EN TANDAS (hasta 50 por vez) y
+   solo los que vas a usar de verdad.
+
+7. Al cerrar la sesión, avisame para que commitee y pushee, así el chat que
+   sigue puede clonar en vez de pedirme archivos.
+
 [BLOQUE DE ROL]
 
 Al cerrar la sesión vas a escribir vos mismo tu entrada en la bitácora del
@@ -103,6 +137,11 @@ Tené presente al escribir los textos que el destinatario es un estudiante de
 ingeniería mirando el desarrollo de un parcial. El `text` de cada paso tiene que
 ser lo que escribiría un profesor en el pizarrón, no una traza de depuración.
 
+Sumá también **D17**, que es de tu zona y son tres líneas: la tabla de
+vocabulario de docs/API.md (líneas 47-57) todavía lista los trece tipos viejos,
+incluidos los tres que la enmienda sacó. Lo detectó el Chat 3 al implementar la
+calculadora contra el ADR y encontrar que API.md decía otra cosa.
+
 El vocabulario de `type` de ADR-007 §3.3 sigue siendo cerrado, y ahora tiene diez
 valores, no trece. Si te parece que falta uno, no lo agregues: decímelo.
 
@@ -132,7 +171,7 @@ Corré `node tests/run.js` antes de empezar y después de cada ítem.
 
 ---
 
-## Chat 3 — Interfaz y Calculadoras · **habilitado: puede arrancar ya**
+## Chat 3 — Interfaz y Calculadoras · *Paso 3 cerrado; el siguiente es el Paso 4*
 
 ```
 Sos el Chat 3 (Interfaz y Calculadoras) de docs/CHAT_ROLES.md.
@@ -142,21 +181,18 @@ circunstancia, y no implementás algoritmos: si te falta una operación
 matemática, emitís un pedido al motor con el formato de CHAT_ROLES.md §5 y
 paramos hasta que el Chat 1 lo resuelva.
 
-Tu tarea es el Paso 3 del HANDOFF (Versión 3a): reescribir la calculadora de
-álgebra en modules/algebra/, importando exclusivamente desde
-shared/math/index.js.
+Tu tarea es el Paso 4 del HANDOFF (Versión 3b): el dashboard de la plataforma
+en js/ e index.html de la raíz — navegación entre calculadoras sin frameworks,
+historial y favoritos.
 
-Leé docs/adr/ADR-007-contrato-de-steps.md antes de diseñar el panel de
-procedimiento. La regla que más te importa: podés renderizar cualquier paso con
-solo `type` y `text`; `snapshot` y `detail` son opcionales y no podés depender
-de ellos. Algunas operaciones todavía devuelven `steps: []` porque su
-procedimiento se escribe en el Paso 2c-2 — mostralas como "sin desarrollo
-disponible" y seguí; no las bloquees ni implementes el procedimiento vos.
+modules/algebra/ ya está hecha (Paso 3, 27 operaciones) y es tu referencia de
+estilo de código: modelo de presentación intermedio, vista separada de
+operaciones, servicios aparte. El dashboard tiene que poder incorporar
+calculadoras nuevas sin que haya que tocarlo.
 
-legacy/calculadora-algebra-v1/ es la referencia funcional: 25 operaciones,
-procedimiento paso a paso, historial, exportación, pegado desde planilla,
-atajos de teclado. Es referencia de QUÉ hace, no de CÓMO está escrita: viola
-AI_RULES.md §4 y esa es justamente la deuda que estamos saldando.
+Ojo con una cosa que vas a ver: la calculadora de álgebra hoy se muestra sin
+estilos, porque css/algebra.css todavía no existe. No lo arregles vos: css/ es
+zona del Chat 4.
 
 Antes de escribir código, presentame el plan técnico de la Fase 3 de
 WORKFLOW.md: archivos nuevos, archivos modificados, dependencias, impacto.
@@ -164,7 +200,7 @@ WORKFLOW.md: archivos nuevos, archivos modificados, dependencias, impacto.
 
 ---
 
-## Chat 4 — Diseño y UX
+## Chat 4 — Diseño y UX · **el que sigue**
 
 ```
 Sos el Chat 4 (Diseño y UX) de docs/CHAT_ROLES.md.
@@ -176,6 +212,18 @@ Tu tarea es el sistema de diseño de la plataforma: paleta, tipografía,
 espaciado, componentes, temas claro y oscuro, responsive y accesibilidad.
 Tiene que servir para decenas de calculadoras de disciplinas distintas, no
 solo para la de álgebra.
+
+Hay algo urgente y concreto: **modules/algebra/index.html enlaza
+../../css/algebra.css y ese archivo no existe.** La calculadora funciona pero se
+ve completamente sin estilos, y da 404 en cada carga. Es lo primero.
+
+Las clases ya están puestas en el HTML y en los archivos de modules/algebra/view/:
+leelas de ahí en vez de inventar nombres nuevos, y si te falta un gancho, pedíselo
+al Chat 3 en vez de tocar el HTML generado por JavaScript.
+
+Verificá el resultado sirviendo el proyecto (python -m http.server 8000) y
+abriendo http://localhost:8000/modules/algebra/index.html — no alcanza con
+escribir el CSS y darlo por bueno.
 
 legacy/calculadora-algebra-v1/style.css tiene la estética actual (consola
 científica oscura) como punto de partida, pero no estás atado a ella.
