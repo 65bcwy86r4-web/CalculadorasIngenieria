@@ -1,6 +1,6 @@
 # CHAT_ROLES.md
 
-Versión: 1.1
+Versión: 1.2
 
 Estado: Obligatorio
 
@@ -13,6 +13,11 @@ Estado: Obligatorio
 > Motivo: en la sesión del Paso 1 el Chat 5 editó el HANDOFF directamente. El
 > resultado fue mejor que el flujo previsto, así que se cambia la regla en vez
 > de pedir que se cumpla una que ya nadie iba a seguir.
+>
+> **Cambios de la 1.2 (2026-09-14).** Se agrega §6.1: el prompt de arranque no
+> describe la tarea, apunta al HANDOFF. Motivo: el prompt y el paso escrito se
+> desincronizaron con un día de diferencia y el Chat 4 lo detectó antes de
+> arrancar. Dos fuentes para la misma información se separan solas.
 
 ---
 
@@ -261,6 +266,26 @@ Reglas que sostienen el reparto:
 
 6. **Actualizar la fecha de "Última actualización" del encabezado** es parte de
    escribir en el archivo.
+
+## 6.1 El prompt apunta acá, no describe la tarea
+
+El prompt con el que se abre un chat establece **quién es** y **qué no puede
+tocar**. **No dice qué hacer**: eso sale de `docs/HANDOFF.md` §3 y §4.
+
+La razón es concreta y ya pasó: mientras el prompt describía la tarea, había dos
+textos sobre lo mismo escritos en momentos distintos, y se separaron. El Chat 4
+lo detectó antes de arrancar; el siguiente podría no detectarlo y ejecutar la
+versión equivocada sin que nadie se entere.
+
+Reglas que lo sostienen:
+
+1. **Una tarea nueva se escribe en §4 del HANDOFF, nunca en el prompt.**
+2. **Si el prompt y el HANDOFF se contradicen, manda el HANDOFF.** El chat avisa
+   la contradicción y frena; no elige por su cuenta.
+3. **Si un ADR está referenciado, el ADR manda sobre cualquier resumen**,
+   incluido el del propio HANDOFF.
+4. **Todo chat confirma su tarea antes de empezar.** Es lo que atrapa un §3
+   ambiguo o vencido antes de que cueste trabajo.
 
 ## Por qué se abrió el archivo
 
