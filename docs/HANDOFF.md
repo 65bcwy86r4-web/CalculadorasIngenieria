@@ -3,7 +3,7 @@
 **Fuente de verdad operativa del proyecto.** Todo chat lo lee al empezar. El
 responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 
-Última actualización: **2026-09-13**
+Última actualización: **2026-09-14**
 
 - **Repositorio:** https://github.com/65bcwy86r4-web/CalculadorasIngenieria
 - **Publicado en:** https://65bcwy86r4-web.github.io/CalculadorasIngenieria/
@@ -54,6 +54,7 @@ principal.
 | 2 | Paso 2a: refactores de nombres (ADR-005, D3, D12) | **Cerrado el 2026-09-13** |
 | 2 | Paso 2c-1: congelar el contrato de `steps` (ADR-007) | **Cerrado el 2026-09-13** |
 | 3 | Paso 3: calculadora de álgebra en `modules/algebra/` (Versión 3a) | **Cerrado el 2026-09-13** |
+| 4 | Paso 3b: sistema de diseño y estilos de la calculadora | Confirmado el 2026-09-14, listo para arrancar |
 | — | — | Ninguna otra sesión abierta |
 
 **El contrato está congelado: el Paso 3 puede arrancar.** El Chat 3 tiene en
@@ -179,18 +180,52 @@ pública alcanzó tal cual está. Detalle en la bitácora, §6.
 
 **Falta la mitad del Chat 4**, que es lo que sigue de este paso:
 
-### Paso 3b — Estilos de la calculadora de álgebra · Chat 4 · *propuesto por el Chat 3*
+### Paso 3b — Sistema de diseño y estilos de la calculadora · Chat 4 · **siguiente**
+
+*Propuesto por el Chat 3, **confirmado por el Chat 1 el 2026-09-14**, con el
+alcance ampliado y precisado abajo tras la consulta del Chat 4.*
 
 `modules/algebra/index.html` sale con clases semánticas y **sin hoja de
 estilos**: enlaza `css/algebra.css`, que todavía no existe, así que hoy la
-calculadora funciona pero se ve sin formato. El contrato de clases —qué genera
-el JavaScript y qué estructura esperar en cada panel— está escrito como
-comentario al principio de ese `index.html`, para no obligar a leer el código.
+calculadora funciona pero se ve sin formato y da 404 en cada carga. El contrato
+de clases —qué genera el JavaScript y qué estructura esperar en cada panel—
+está escrito como comentario al principio de ese `index.html`.
 
-Un punto que conviene mirar con atención: `.step-snapshot` es **opcional**. La
-mayoría de los pasos no lo trae, y el diseño no puede depender de que esté.
+**El sistema de diseño de la plataforma y los estilos de la calculadora son un
+solo paso, y el sistema se extrae de la calculadora, no se diseña en el aire.**
+Es [ADR-006](adr/ADR-006-interfaz-antes-que-port.md) aplicado a CSS: una
+capacidad se escribe cuando hay algo concreto que la pide. Un sistema de diseño
+construido para "decenas de calculadoras" que todavía no existen repetiría
+exactamente el error que costó cuatro sesiones corregir en el motor.
 
-*Propuesta del Chat 3; la confirma el responsable del proyecto o el Chat 1.*
+La calculadora de álgebra es buena base para extraerlo porque ya ejercita casi
+todas las primitivas visuales que la plataforma va a necesitar: grilla de
+entrada de matrices, seis tipos de bloque de resultado (`matrix`, `scalar`,
+`vector`, `pairs`, `text`, `flags`), lista de pasos con matriz opcional, cajón
+de historial, superposición modal, avisos, menú lateral de 27 ítems y barra de
+exportación.
+
+Reparto de archivos en `css/`, para que el sistema no nazca atado al álgebra:
+
+| Archivo | Qué lleva |
+|---|---|
+| `tokens.css` | Color, tipografía, espaciado, radios, sombras. Sin selectores de componente |
+| `base.css` | Reset, tipografía base, temas claro y oscuro |
+| `components.css` | Lo reutilizable entre calculadoras: botones, paneles, tablas, campos, avisos |
+| `algebra.css` | Únicamente lo específico de esta calculadora |
+
+Reglas del paso:
+
+- **Los nombres de clase del HTML son el contrato.** El Chat 4 los lee de
+  `modules/algebra/index.html` y de `modules/algebra/view/`; no los renombra. Si
+  le falta un gancho, se lo pide al Chat 3 (`CHAT_ROLES.md` §5) en vez de tocar
+  el HTML que genera el JavaScript.
+- **`.step-snapshot` es opcional.** La mayoría de los pasos no lo trae y el
+  diseño no puede depender de que esté.
+- **Nueve operaciones muestran hoy "sin desarrollo disponible"** hasta que cierre
+  el Paso 2c-2. Ese estado tiene que verse deliberado, no roto.
+- **Se verifica mirando**, no leyendo el CSS: sirviendo el proyecto y abriéndolo
+  en un navegador, en los dos temas y también a ~400 px de ancho.
 
 ### Paso 2b — El resto del port desde el motor v1 · Chat 2
 
