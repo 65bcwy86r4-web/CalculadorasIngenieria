@@ -40,25 +40,33 @@ Muchas funciones devuelven, además del resultado, el **procedimiento paso a pas
 
 > **La regla que gobierna todo lo demás:** la interfaz tiene que poder renderizar cualquier procedimiento usando **solo `type` y `text`**. `snapshot` y `detail` son mejoras progresivas, nunca requisitos. Un renderizador que necesite `snapshot` para no romperse está mal escrito.
 
-`snapshot` es un arreglo bidimensional de números comunes, no una `Matrix`, y representa el estado **después** de aplicar el paso; en las factorizaciones, el factor que se está construyendo. `detail` no tiene forma fija y ninguna calculadora debe depender de él.
+`snapshot` es un arreglo bidimensional de números comunes, no una `Matrix`. Es **la matriz que ese paso vuelve comprensible**: el estado resultante donde hay uno —en Gauss, Gauss-Jordan y LU, la matriz después de la operación; en las factorizaciones, el factor que se está construyendo— y **la submatriz sobre la que el paso opera donde no lo hay**, como el menor en la expansión de Laplace y en la matriz de cofactores. `detail` no tiene forma fija y ninguna calculadora debe depender de él.
 
 **Vocabulario cerrado de `type`.** Un `type` fuera de esta lista es un error de contrato; ampliarla es una decisión de arquitectura, no de una función.
 
 | Procedimiento | | Cierre | |
 |---|---|---|---|
 | `info` | nota que no modifica nada | `final` | resultado final |
-| `swap` | intercambio de dos filas | `unique` | el sistema tiene solución única |
-| `scale` | fila por un escalar | `infinite` | infinitas soluciones |
-| `elim` | combinación lineal de filas | `incompatible` | sistema incompatible |
+| `swap` | intercambio de dos filas | | |
+| `scale` | fila por un escalar | | |
+| `elim` | combinación lineal de filas | | |
 | `expand` | expansión por cofactores | | |
 | `compute` | cálculo de un elemento o columna | | |
 | `normalize` | normalización de un vector | | |
 | `rotate` | rotación de Jacobi | | |
 | `iterate` | una iteración de un método iterativo | | |
 
-**Estado actual.** Nueve funciones devuelven `steps: []` a propósito: la forma está congelada y el contenido se escribe después (ADR-007 §4). Un `steps: []` se renderiza como "esta operación todavía no muestra el desarrollo", que es honesto y no obliga a esperar. Las que ya traen procedimiento son `rowEchelon`, `reducedRowEchelon`, `rank`, `solveSystem`, `determinantByGauss`, `inverse`, `luDecomposition` y `conditionNumber`.
+Son **diez**. `unique`, `infinite` e `incompatible` **no son tipos de paso**: son los valores del discriminante que devuelve `solveSystem`, que desde la enmienda de ADR-007 §3.3 se llama `classification` precisamente para que no se confundan con `step.type`.
 
-Algunas funciones **propagan** los pasos de lo que calculan internamente en vez de tener unos propios: `conditionNumber` devuelve los de la inversión, `adjugate` los de la matriz de cofactores (o los de la inversa, si usó `det(A)·A⁻¹`), `eigenvalues` los del método que despachó, y `diagonalize` encadena los de autovalores y autovectores. Es lo correcto: lo que hay que mostrar es el procedimiento que efectivamente corrió.
+**Estado actual.** Con procedimiento escrito: `rowEchelon`, `reducedRowEchelon`, `rank`, `solveSystem`, `determinantByGauss`, `determinantByCofactors`, `inverse`, `cofactorMatrix`, `adjugate`, `conditionNumber` y `luDecomposition`.
+
+Todavía con `steps: []`, a la espera del Paso 2c-2 parte B: `qrDecomposition`, `choleskyDecomposition`, `eigenvalues`, `eigenvaluesQR`, `jacobiEigenDecomposition`, `eigenvalues2x2`, `eigenvectors` y `diagonalize`. Un `steps: []` se renderiza como "esta operación todavía no muestra el desarrollo", que es honesto y no obliga a esperar.
+
+**Herencia de pasos.** Algunas funciones encadenan el procedimiento de lo que calculan internamente: `adjugate` el de la matriz de cofactores (o el de la inversa, si usó `det(A)·A⁻¹`), `conditionNumber` el de la inversión, `eigenvalues` el del método que despachó y `diagonalize` el de autovalores y autovectores. Mostrar el procedimiento que efectivamente corrió es lo correcto, pero **heredar no alcanza si el resultado no explica la operación que se pidió**: cada una agrega sus propios pasos de cierre. Es la regla que dejó la enmienda del 18/09 a ADR-007 §4.
+
+**Un solo paso `final`, y es el último.** Cuando una función encadena los pasos de una auxiliar, el `final` heredado se degrada a `info`: deja de ser la conclusión en cuanto hay una posterior. Así una interfaz puede destacar el cierre sin ambigüedad. `tests/math/steps-contract.test.js` lo verifica en todas las funciones del contrato.
+
+**Cota de legibilidad.** `cofactorMatrix` emite un paso por cofactor, o sea n². Arriba de 6×6 omite el desarrollo y deja un `info` explicándolo: para una 15×15 —tamaño que el selector de la calculadora permite— serían 225 pasos con menores de 196 celdas, que no es un procedimiento sino un volcado. El resultado numérico no cambia.
 
 `tests/math/steps-contract.test.js` verifica todo esto de forma genérica, así que el contrato falla solo cuando alguien se desvía.
 
@@ -151,10 +159,14 @@ Resuelve `Ax = b` mediante Gauss-Jordan. **No lanza** cuando el sistema
 no tiene solución única (ver `Algorithms.md`): eso es un resultado
 matemático válido, no un error de uso.
 **Parámetros:** `A: Matrix`, `b: number[]` (largo = `A.rows`)
-**Retorna (discriminado por `type`):**
-- `{ type: 'unique', solution: number[], steps, rref, rankA, rankAug }`
-- `{ type: 'infinite', message, steps, rref, rankA, rankAug }`
-- `{ type: 'incompatible', message, steps, rankA, rankAug }`
+**Retorna (discriminado por `classification`):**
+- `{ classification: 'unique', solution: number[], steps, rref, rankA, rankAug }`
+- `{ classification: 'infinite', message, steps, rref, rankA, rankAug }`
+- `{ classification: 'incompatible', message, steps, rankA, rankAug }`
+
+> El discriminante se llama `classification` y no `type` desde la enmienda de ADR-007 §3.3: tener `result.type` y `step.type` con el mismo nombre y vocabularios distintos, en dos objetos que una interfaz recorre en la misma función de renderizado, era una confusión servida. **Los valores no cambiaron.**
+
+El procedimiento cierra con un paso `final` que enuncia la clasificación y los rangos que la justifican — Rouché-Frobenius escrito en el desarrollo, no solo en el objeto de retorno.
 
 **Excepciones:** `DimensionError` si `b.length !== A.rows`.
 **Ejemplo:** `solveSystem(new Matrix([[2,1],[1,3]]), [8, 13])`
@@ -167,7 +179,8 @@ Determinante vía triangulación de Gauss — O(n³), método recomendado para c
 
 ### `determinantByCofactors(matrix)`
 Expansión de Laplace — O(n!), solo con fines teóricos/didácticos.
-**Retorna:** `{ value: number, steps: Array }` — `steps` vacío por ahora
+**Retorna:** `{ value: number, steps: Array }`
+`steps` muestra **solo el primer nivel** de la expansión: un paso `expand` por término de la primera fila, con su menor como `snapshot`. La función es recursiva y un trazado completo tendría `O(n!)` pasos.
 **Excepciones:** `DimensionError` si no es cuadrada; `MathError` (`TOO_LARGE_FOR_COFACTORS`) si `n > 7`.
 **Ejemplo:** `determinantByCofactors(new Matrix([[1,2],[3,4]])).value // -2`
 
@@ -179,20 +192,21 @@ Inversa vía Gauss-Jordan sobre `[A | I]`.
 
 ### `cofactorMatrix(matrix)`
 `Cᵢⱼ = (-1)^(i+j) · det(menor_ij)`. Caso base: la matriz de cofactores de una 1×1 es `[[1]]`, cualquiera sea su elemento.
-**Retorna:** `{ matrix: Matrix, steps: Array }` — `steps` vacío por ahora
+**Retorna:** `{ matrix: Matrix, steps: Array }` — un paso `compute` por cofactor, con su menor como `snapshot`, **hasta 6×6**; arriba de ese tamaño el desarrollo se omite (ver la cota de legibilidad más arriba)
 **Excepciones:** `DimensionError` si no es cuadrada.
 **Ejemplo:** `cofactorMatrix(new Matrix([[1,2],[3,4]])).matrix.toArray() // [[4,-3],[-2,1]]`
 **Ejemplo:** `cofactorMatrix(new Matrix([[7]])).matrix.toArray() // [[1]]`
 
 ### `adjugate(matrix)`
 Transpuesta de la matriz de cofactores. Para n > 6 usa `det(A)·A⁻¹` internamente por eficiencia (mismo resultado).
-**Retorna:** `{ matrix: Matrix, steps: Array }` — `steps` propagados del camino que se usó
+**Retorna:** `{ matrix: Matrix, steps: Array }` — los pasos del camino que se usó, más un `final` propio con la transposición o con la identidad `det(A)·A⁻¹`
 **Excepciones:** `DimensionError` si no es cuadrada; `SingularMatrixError` si es singular y n > 6.
 **Ejemplo:** `adjugate(new Matrix([[1,2],[3,4]])).matrix.toArray() // [[4,-2],[-3,1]]`
 
 ### `conditionNumber(matrix)`
 κ(A) = ‖A‖_F · ‖A⁻¹‖_F.
-**Retorna:** `{ value: number, normA: number, normInverse: number, steps: Array }` — `steps` son los de la inversión
+**Retorna:** `{ value: number, normA: number, normInverse: number, steps: Array }`
+`steps` abre con un `info` que anuncia la inversión, encadena el procedimiento de `inverse` y cierra con `‖A‖_F`, `‖A⁻¹‖_F` y `κ(A)` como su producto.
 **Excepciones:** `SingularMatrixError` si la matriz es singular.
 **Ejemplo:** `conditionNumber(Matrix.identity(3)).value // 3`
 

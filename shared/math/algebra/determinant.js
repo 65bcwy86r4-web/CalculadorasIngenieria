@@ -47,9 +47,14 @@ export function determinantByGauss(matrix, tolerance = DEFAULT_TOLERANCE) {
  * Expansión por cofactores (recursiva), solo con fines teóricos/didácticos.
  * Limitada a n <= 7 por su complejidad O(n!); para matrices más grandes
  * usar determinantByGauss.
- * `steps` viene vacío: el desarrollo de la expansión de Laplace es el Paso
- * 2c-2 (ADR-007 §4). La clave existe desde ya para que la interfaz pueda
- * escribirse contra el contrato definitivo.
+ *
+ * **El procedimiento registra únicamente el primer nivel de la expansión.**
+ * La función es recursiva, así que un trazado completo tendría O(n!) pasos —
+ * miles para una 6x6— y sería ilegible además de caro. Lo que se muestra es
+ * la fórmula de Laplace aplicada una vez sobre la primera fila: un paso
+ * `expand` por término, con su menor como `snapshot` y el determinante de ese
+ * menor ya resuelto en el texto. Es también el contenido didáctico real: lo
+ * que se quiere ver es la definición en acción, no el árbol completo.
  *
  * @param {Matrix} matrix
  * @returns {{ value: number, steps: Array<Object> }}
@@ -57,6 +62,8 @@ export function determinantByGauss(matrix, tolerance = DEFAULT_TOLERANCE) {
  * @throws {MathError} si n > 7 (code 'TOO_LARGE_FOR_COFACTORS')
  * @example
  * determinantByCofactors(new Matrix([[1,2],[3,4]])).value; // -2
+ * @example
+ * determinantByCofactors(new Matrix([[1,2,3],[4,5,6],[7,8,10]])).steps.length; // 5
  */
 export function determinantByCofactors(matrix) {
   assertSquareMatrix(matrix, 'matrix');
@@ -67,7 +74,75 @@ export function determinantByCofactors(matrix) {
       { size: matrix.rows }
     );
   }
-  return { value: expand(matrix), steps: [] };
+  return laplaceExpansion(matrix);
+}
+
+/**
+ * Determinante por Laplace sobre la primera fila, con los pasos del primer
+ * nivel de la expansión.
+ *
+ * El valor y los pasos salen de la misma pasada a propósito: calcular el
+ * determinante por un lado y volver a expandir para narrarlo duplicaría un
+ * algoritmo O(n!) solo para mostrarlo (`AI_RULES.md` §22). Los menores se
+ * resuelven con `expand`, que es recursivo y no registra nada.
+ *
+ * @param {Matrix} matrix
+ * @returns {{ value: number, steps: Array<Object> }}
+ * @private
+ */
+function laplaceExpansion(matrix) {
+  const n = matrix.rows;
+  if (n === 1) {
+    const only = matrix.data[0][0];
+    return {
+      value: only,
+      steps: [{
+        type: 'final',
+        text: `El determinante de una matriz de 1x1 es su único elemento: det(A) = ${format(only)}`,
+      }],
+    };
+  }
+
+  const steps = [{
+    type: 'info',
+    text: `Se expande por la primera fila: det(A) = Σⱼ a₁ⱼ · (−1)^(1+j) · det(M₁ⱼ), con ${n} términos.`,
+    snapshot: matrix.toArray(),
+  }];
+
+  const terms = [];
+  let value = 0;
+  for (let j = 0; j < n; j++) {
+    const sign = j % 2 === 0 ? 1 : -1;
+    const element = matrix.data[0][j];
+    const minor = matrix.minor(0, j);
+    const minorValue = expand(minor);
+    const term = sign * element * minorValue;
+    terms.push(term);
+    value += term;
+    steps.push({
+      type: 'expand',
+      text: `Término ${j + 1}: a₁${j + 1} · (${sign > 0 ? '+' : '−'}1) · det(M₁${j + 1}) = `
+        + `${format(element)} · (${sign > 0 ? '+' : '−'}1) · ${format(minorValue)} = ${format(term)}`,
+      snapshot: minor.toArray(),
+    });
+  }
+
+  steps.push({
+    type: 'final',
+    text: `det(A) = ${terms.map(format).join(' + ').replace(/\+ -/g, '− ')} = ${format(value)}`,
+  });
+  return { value, steps };
+}
+
+/**
+ * Formato de los números dentro del texto de un paso. Cuatro decimales, igual
+ * que el resto del motor (gauss.js, lu.js).
+ * @param {number} value
+ * @returns {string}
+ * @private
+ */
+function format(value) {
+  return value.toFixed(4);
 }
 
 /** @param {Matrix} matrix @returns {number} @private */

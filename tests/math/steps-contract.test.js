@@ -29,6 +29,9 @@
  *
  * Autor: Chat 2 — Motor
  * Fecha de creación: 2026-09-13
+ * Modificado: 2026-09-18 — Chat 2 (Paso 2c-2, parte A). Vocabulario a diez
+ *   tipos según la enmienda de ADR-007 §3.3 (D17), y `esperaPasos` al día con
+ *   las funciones que ya registran procedimiento.
  * Dependencias: shared/math/index.js, tests/assert.js
  * ---------------------------------------------------------------------------
  */
@@ -46,16 +49,23 @@ import {
 import { assertTrue, assertFalse, assertEqual } from '../assert.js';
 
 /**
- * Vocabulario cerrado de `type`, transcrito de ADR-007 §3.3. Se transcribe y
- * no se importa del motor a propósito: si el motor exportara la lista, la
- * prueba diría "el motor usa los tipos que el motor declara", que no verifica
- * nada. Contra una copia del ADR, detecta que alguien inventó un tipo.
+ * Vocabulario cerrado de `type`, transcrito de ADR-007 §3.3 **con su enmienda
+ * del 2026-09-13**. Se transcribe y no se importa del motor a propósito: si el
+ * motor exportara la lista, la prueba diría "el motor usa los tipos que el
+ * motor declara", que no verifica nada. Contra una copia del ADR, detecta que
+ * alguien inventó un tipo.
+ *
+ * Son diez y no trece: `unique`, `infinite` e `incompatible` nunca fueron
+ * tipos de paso, sino el discriminante del retorno de `solveSystem` —que desde
+ * la enmienda se llama `classification` justamente para que no se confundan—.
+ * Mientras estuvieron acá, esta prueba habría aceptado sin chistar un paso con
+ * `type: 'unique'`: el agujero estaba exactamente donde estaba la deuda (D17).
  */
 const TIPOS_DE_PASO = [
   // Pasos de procedimiento
   'info', 'swap', 'scale', 'elim', 'expand', 'compute', 'normalize', 'rotate', 'iterate',
-  // Pasos de cierre
-  'final', 'unique', 'infinite', 'incompatible',
+  // Paso de cierre
+  'final',
 ];
 
 /** Matrices de trabajo, elegidas para que cada función corra su camino normal. */
@@ -64,6 +74,15 @@ const A3 = new Matrix([[6, 1, 1], [4, -2, 5], [2, 8, 7]]);
 const SIMETRICA = new Matrix([[2, 1], [1, 2]]);
 const DEFINIDA_POSITIVA = new Matrix([[4, 2], [2, 3]]);
 const NO_SIMETRICA_3X3 = new Matrix([[3, 7, 2], [0, 5, 9], [0, 0, -1]]);
+
+/**
+ * Del tamaño máximo que permite el selector de la calculadora (15x15). Está
+ * acá para que la cota de legibilidad se pruebe contra el caso que la motivó,
+ * y no solo contra matrices chicas donde nunca se dispara.
+ */
+const A15 = new Matrix(
+  Array.from({ length: 15 }, (_, i) => Array.from({ length: 15 }, (_, j) => (i === j ? 17 : (i + j) % 4))),
+);
 
 /**
  * Todas las funciones alcanzadas por ADR-007, con una invocación válida cada
@@ -82,10 +101,12 @@ const CASOS = [
   { nombre: 'luDecomposition', ejecutar: () => luDecomposition(A3), esperaPasos: true },
   // Heredan los pasos de lo que calculan internamente (ADR-007, propagación).
   { nombre: 'conditionNumber', ejecutar: () => conditionNumber(A2), esperaPasos: true },
-  // Cambiaron de forma en el Paso 2c-1; su contenido es el Paso 2c-2.
-  { nombre: 'determinantByCofactors', ejecutar: () => determinantByCofactors(A3), esperaPasos: false },
-  { nombre: 'cofactorMatrix', ejecutar: () => cofactorMatrix(A3), esperaPasos: false },
-  { nombre: 'adjugate', ejecutar: () => adjugate(A3), esperaPasos: false },
+  // Con procedimiento escrito en el Paso 2c-2, parte A.
+  { nombre: 'determinantByCofactors', ejecutar: () => determinantByCofactors(A3), esperaPasos: true },
+  { nombre: 'cofactorMatrix', ejecutar: () => cofactorMatrix(A3), esperaPasos: true },
+  { nombre: 'adjugate', ejecutar: () => adjugate(A3), esperaPasos: true },
+  { nombre: 'cofactorMatrix 15x15', ejecutar: () => cofactorMatrix(A15), esperaPasos: true },
+  // Todavía con steps: []; su contenido es el Paso 2c-2, parte B.
   { nombre: 'qrDecomposition', ejecutar: () => qrDecomposition(A3), esperaPasos: false },
   { nombre: 'choleskyDecomposition', ejecutar: () => choleskyDecomposition(DEFINIDA_POSITIVA), esperaPasos: false },
   { nombre: 'eigenvalues (jacobi)', ejecutar: () => eigenvalues(SIMETRICA), esperaPasos: false },
@@ -229,12 +250,55 @@ export const tests = [
     },
   },
   {
+    name: 'hay a lo sumo un paso final, y es el último',
+    fn: () => {
+      // Invariante que apareció al encadenar procedimientos en el Paso 2c-2:
+      // cuando una función hereda los pasos de una auxiliar y agrega su propio
+      // cierre, el `final` heredado deja de ser final. Sin degradarlo, el
+      // procedimiento termina con dos o tres pasos marcados como conclusión y
+      // la interfaz no puede distinguir cuál lo es.
+      //
+      // No está en ADR-007: es una consecuencia del contrato que conviene que
+      // el Chat 1 evalúe incorporar. Mientras tanto, queda fijada acá.
+      CASOS.forEach(({ nombre, ejecutar }) => {
+        const { steps } = ejecutar();
+        const finales = steps.filter((paso) => paso.type === 'final');
+        assertTrue(finales.length <= 1, `${nombre}: ${finales.length} pasos de cierre; debería haber a lo sumo uno.`);
+        if (finales.length === 1) {
+          assertEqual(
+            steps.indexOf(finales[0]),
+            steps.length - 1,
+            `${nombre}: el paso de cierre no es el último.`,
+          );
+        }
+      });
+    },
+  },
+  {
+    name: 'ningún procedimiento se pasa de largo para el usuario',
+    fn: () => {
+      // Cota de legibilidad, no de corrección. `cofactorMatrix` emite n² pasos
+      // y el selector de la calculadora llega a 15x15: sin cota serían 225
+      // pasos con menores de 196 celdas, que no es un procedimiento sino un
+      // volcado. Si una función nueva se pasa de acá, hay que acotarla antes
+      // de que llegue a la interfaz.
+      const LIMITE = 60;
+      CASOS.forEach(({ nombre, ejecutar }) => {
+        const { steps } = ejecutar();
+        assertTrue(
+          steps.length <= LIMITE,
+          `${nombre}: ${steps.length} pasos, por encima del límite de ${LIMITE}.`,
+        );
+      });
+    },
+  },
+  {
     name: 'el vocabulario de type no creció sin pasar por un ADR',
     fn: () => {
       // ADR-007 §3.3 lo declara cerrado y §5 dice que ampliarlo es decisión
       // del Chat 1. Fijar el tamaño hace que agregar uno por las dudas falle
       // acá, que es donde se quiere que falle.
-      assertEqual(TIPOS_DE_PASO.length, 13, 'Cantidad de tipos del vocabulario cerrado.');
+      assertEqual(TIPOS_DE_PASO.length, 10, 'Cantidad de tipos del vocabulario cerrado.');
     },
   },
 ];

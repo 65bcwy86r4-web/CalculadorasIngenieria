@@ -22,7 +22,7 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 
 | Componente | Estado | Chat responsable |
 |---|---|---|
-| Motor `shared/math/` | Completo y documentado. **38 archivos** (`eigen.js` dividido por método). Cubierto por la suite. Sin hallazgos abiertos. 95 exportaciones públicas, sin altas ni bajas. **Contrato de `steps` congelado** (ADR-007, Paso 2c-1): toda función de álgebra devuelve un objeto plano con `steps`, y nueve lo traen vacío hasta el Paso 2c-2. | 2 |
+| Motor `shared/math/` | Completo y documentado. 38 archivos. Cubierto por la suite. Sin hallazgos abiertos. 95 exportaciones públicas, sin altas ni bajas. Contrato de `steps` congelado (ADR-007). **Procedimiento escrito en 11 funciones** (Paso 2c-2 parte A, 2026-09-18); quedan 8 con `steps: []` para la parte B. `solveSystem` discrimina por `classification`, no por `type`. | 2 |
 | `docs/` técnica | Architecture, API, Algorithms, Roadmap completos | 1 / 2 |
 | `docs/governance/` | 4 documentos rectores, versión 1.0 | 1 |
 | `tests/` | **313 pruebas en 17 archivos, todas pasan.** Pasos 1, 1b, 2a y 2c-1 cerrados. Incluye `steps-contract.test.js`. | 5 |
@@ -64,11 +64,17 @@ Versión 3 es la cáscara: dashboard, navegación, historial y favoritos (Paso 4
 | 3 | Paso 3: calculadora de álgebra en `modules/algebra/` (Versión 3a) | **Cerrado el 2026-09-13** |
 | 4 | Paso 3b: sistema de diseño y estilos de la calculadora | **Cerrado el 2026-09-14** |
 | 3 | Paso 3c: ganchos de estado para el panel (pedido del Chat 4) | Aprobado el 2026-09-14, no bloquea al 3b |
+| 2 | Paso 2c-2 **parte A**: enmiendas de ADR-007 (D16), D17, grupo 1 y grupo 4 | **Cerrada el 2026-09-18** |
 | — | — | Ninguna otra sesión abierta |
 
-**Siguientes, independientes entre sí:** el **Paso 2c-2** (Chat 2) y el
+**Siguientes, independientes entre sí:** el **Paso 2c-2 parte B** (Chat 2) y el
 **Paso 3c** (Chat 3). Ninguno bloquea al otro y las zonas no se tocan, así que
 el orden lo elige el responsable del proyecto.
+
+**Para el Chat 3, cuando le toque:** `solveSystem` ya devuelve `classification`.
+La función `classificationOf` de `modules/algebra/operations/system-ops.js`
+—que hoy lee `outcome.classification ?? outcome.type`— puede reducirse a una
+línea. La calculadora funciona igual antes y después; no es urgente.
 
 Verificación del 2026-09-18, sobre `7d10dd3`: **313 pruebas en verde** y la
 calculadora funcionando en navegador. Es el estado que se lleva a `main`.
@@ -156,7 +162,7 @@ Hecho. La suite pasó de 306 a **313 pruebas, todas en verde**, con
 Cerró D14 con la división por método: `eigen.js` (233 líneas),
 `eigen-jacobi.js` (201), `eigen-2x2.js` (91) y `eigen-qr.js` (84).
 
-### Paso 2c-2 — Escribir los procedimientos · Chat 2 · **siguiente**
+### Paso 2c-2 — Escribir los procedimientos · Chat 2 · **parte A cerrada el 2026-09-18; sigue la parte B**
 
 > **Corrección del 2026-09-18 (Chat 1), tras el relevamiento del Chat 2:** son
 > **once** funciones con `steps: []`, no nueve; `eigenvalues2x2` faltaba en los
@@ -165,15 +171,30 @@ Cerró D14 con la división por método: `eigen.js` (233 líneas),
 > sale κ(A). Detalle y evidencia en la enmienda de
 > [ADR-007](adr/ADR-007-contrato-de-steps.md) §4.
 
-Además de los cuatro grupos de abajo, arranca con las dos consecuencias de la
-enmienda de [ADR-007](adr/ADR-007-contrato-de-steps.md) §3.3 (D16):
+Se ejecuta en dos partes.
 
-- `solveSystem` cierra su procedimiento con un paso `final` que enuncia la
-  clasificación del sistema.
-- Su discriminante de retorno pasa de `type` a `classification`, para terminar
-  con la colisión de nombre contra `step.type`. Los valores no cambian.
+**Parte A — cerrada el 2026-09-18.** Las dos consecuencias de la enmienda de
+[ADR-007](adr/ADR-007-contrato-de-steps.md) §3.3 (D16), la corrección de D17, el
+grupo 1 y el grupo 4. Detalle en la bitácora, §6.
 
-#### Los cuatro grupos · **puede arrancar cuando se quiera**
+- ~~`solveSystem` cierra su procedimiento con un paso `final` que enuncia la
+  clasificación del sistema.~~ **Hecho.**
+- ~~Su discriminante de retorno pasa de `type` a `classification`.~~ **Hecho.**
+  Alcanzó también a `interpolation/spline.js`, que lo consumía internamente y no
+  estaba relevado.
+- ~~Grupo 1: expansión de Laplace.~~ **Hecho**, con el desarrollo de
+  `cofactorMatrix` acotado a 6×6 (ver la bitácora).
+- ~~Grupo 4: los pasos de cierre de `conditionNumber`.~~ **Hecho.**
+
+**Parte B — siguiente.** Los grupos 2 y 3: `qrDecomposition`,
+`choleskyDecomposition` y las cinco de autovalores, con `eigenvalues2x2`
+incluida. Arranca resolviendo una decisión que la parte A dejó planteada a
+propósito: **cuántos pasos emite un método iterativo.** `eigenvaluesQR` corre
+500 iteraciones fijas y Jacobi hasta 1000 rotaciones; un paso por iteración es
+ilegible para el usuario e inaceptable para la suite. El Chat 2 trae dos o tres
+opciones con sus costos medidos; no se resuelve sobre la marcha.
+
+#### Los cuatro grupos
 
 Llenar los pasos de las nueve funciones que hoy devuelven `steps: []`, por los
 cuatro grupos de [ADR-007](adr/ADR-007-contrato-de-steps.md) §4. Puede repartirse
@@ -319,9 +340,11 @@ más trabajo.
 | D13 | El camino QR general sigue sin desplazamientos de Wilkinson: no converge con autovalores de igual módulo. Con ADR-005 dejó de ser un defecto oculto —`eigenvalues` no lo usa para simétricas y `eigenvaluesQR` lo anuncia, con una prueba que lo fija como comportamiento esperado— pero sigue siendo el más débil de los tres métodos | `shared/math/algebra/eigen.js` | Baja |
 | ~~D14~~ | ~~`eigen.js` cerca del máximo de 500 líneas de `AI_RULES.md` §10~~ | `shared/math/algebra/` | **Resuelta el 2026-09-13** (Paso 2c-1, división por método de ADR-007 §3.5) |
 | D15 | **Resuelto por [ADR-007](adr/ADR-007-contrato-de-steps.md) el 2026-09-13**; se ejecuta en los Pasos 2c-1 y 2c-2. El contrato de `steps` no es uniforme: 7 funciones de álgebra devuelven `{type, text, snapshot}`, `luDecomposition` devuelve `{type, text}` sin `snapshot`, y 9 no devuelven `steps` (`determinantByCofactors`, `adjugate`, `cofactorMatrix`, `qrDecomposition`, `choleskyDecomposition`, `eigenvalues`, `eigenvectors`, `diagonalize`, `conditionNumber`). Además el dato principal se llama distinto en cada una (`value`, `result`, `inverse`, `rank`, `solution`, `values`, `L/U/P`...). La V1 mostraba el procedimiento de las 25 operaciones; con esto la Versión 3a no puede igualarla en 9. Detectado en el relevamiento previo al Paso 3 | `shared/math/algebra/`, `docs/API.md` | **Media — la forma está congelada (Paso 2c-1, 2026-09-13); falta el contenido (Paso 2c-2)** |
-| D17 | `docs/API.md`, sección "El contrato de `steps`", sigue listando `unique`, `infinite` e `incompatible` en la tabla de vocabulario de `type` — 13 tipos, donde ADR-007 §3.3 enmendado tiene 10. Es la misma confusión que cerró D16, que quedó corregida en el ADR y no en API.md. **Evidencia:** `API.md` líneas 47–57 contra `ADR-007` §3.3 y su enmienda. La calculadora se implementó contra los 10 del ADR. Detectado por el Chat 3 en el relevamiento del Paso 3 | `docs/API.md` | Media — Chat 2 |
+| ~~D17~~ | ~~`docs/API.md` listaba 13 tipos de paso donde el ADR enmendado tiene 10~~ | `docs/API.md` | **Resuelta el 2026-09-18** (Paso 2c-2 parte A). Aparecía también en `tests/math/steps-contract.test.js`, que fijaba `length === 13`: la prueba de contrato aceptaba un paso con `type: 'unique'` sin chistar. Corregido en los dos lugares |
 | D18 | Los métodos de la clase `Matrix` quedan fuera del contrato de `steps`: `transpose`, `trace`, `add`, `subtract`, `multiply`, `scalarMultiply`, `power`, `frobeniusNorm`, las cinco de clasificación y los constructores `identity`/`diagonal` devuelven una `Matrix` o un número pelados, sin clave `steps` —ni siquiera vacía—. No es un defecto: ADR-007 §3.4 no los alcanza. Pero son **12 de las 27 operaciones** de la calculadora, que quedan sin desarrollo posible, y la V1 sí mostraba procedimiento para varias (por ejemplo, el producto elemento a elemento). Si se quiere que lo tengan, es decisión del Chat 1 y trabajo del Chat 2. La interfaz ya las distingue de las que tienen `steps: []` | `shared/math/algebra/matrix.js`, ADR-007 | Baja — decidir en Chat 1 |
 | D11 | `known-defects.test.js` quedó vacío (0 pruebas, el archivo con su explicación intacta) para que el próximo hallazgo tenga dónde anotarse. Si el Chat 5 prefiere borrarlo y recrearlo cuando haga falta, hay que sacarlo también de la estructura de `tests/README.md`, que es su zona | `tests/math/`, `tests/README.md` | Baja — decidir en Chat 5 |
+| D22 | **Invariante que no está en ADR-007 y conviene que esté:** a lo sumo un paso `final` por procedimiento, y es el último. Apareció al encadenar pasos en el Paso 2c-2: cuando una función hereda el procedimiento de una auxiliar y agrega su propio cierre, el `final` heredado deja de ser final, y sin degradarlo la interfaz no puede distinguir cuál es la conclusión. El motor ya lo cumple —`adjugate` y `conditionNumber` degradan a `info` lo que heredan— y `steps-contract.test.js` lo verifica, pero es una regla de contrato que decidió el Chat 2 sobre la marcha. Debería estar en el ADR o ser rechazada | `docs/adr/ADR-007`, `shared/math/algebra/inverse.js` | Media — decidir en Chat 1 |
+| D23 | La prueba de contrato fija un tope de 60 pasos por procedimiento como cota de legibilidad. El número es una elección del Chat 2, no una decisión de producto: sale de que `cofactorMatrix` acotada a 6×6 da 38 pasos y de que algo del orden de dos pantallas parece el límite de lo que alguien lee. Si el Chat 3 o el Chat 4 tienen un criterio mejor desde la interfaz —por ejemplo, paginar el panel en vez de acotar el motor—, este número debería salir de ahí y no de acá | `tests/math/steps-contract.test.js` | Baja — revisar con Chat 3 y 4 |
 | D19 | `css/algebra.css` encadena `tokens.css`, `base.css` y `components.css` con `@import`, que los descarga en serie. Se hizo así porque `modules/algebra/index.html` enlaza una sola hoja y ese archivo es del Chat 3: evitar un pedido de cambio de HTML por algo que el CSS resuelve solo. Cuando el Paso 4 arme la cáscara compartida, el HTML debería enlazar las cuatro hojas en paralelo y estos `@import` desaparecer | `css/algebra.css`, `modules/*/index.html` | Baja — Paso 4 |
 | D20 | En pantallas angostas el menú lateral no puede ser un cajón superpuesto. El único estado que le pone el JavaScript es `.is-hidden` (`app.js:408`) y su ausencia significa "visible", así que un cajón arrancaría abierto tapando la pantalla en cada carga. Queda resuelto como tira desplegable en el flujo, con altura acotada y desplazamiento propio: utilizable, pero come 15 rem de alto arriba del contenido. Un cajón de verdad necesita un segundo estado del Chat 3 (`.sidebar.is-open`, cerrado por defecto bajo cierto ancho). **Evidencia:** `components.css` §13 y `app.js:408`. **Confirmada por el Chat 1 el 2026-09-18:** el segundo estado se agrega en el Paso 4, junto con la cáscara, no antes — el cajón pertenece a la navegación de la plataforma y hacerlo ahora dentro de una calculadora lo ataría al módulo equivocado | `modules/algebra/app.js`, `css/components.css` | Media — Paso 4 |
 | D21 | No hay interruptor de tema. Los temas funcionan por `prefers-color-scheme` y `tokens.css` deja listos los ganchos `[data-theme="light"]` y `[data-theme="dark"]` en `<html>`, pero nada los escribe. Quien tenga el sistema operativo en claro no puede ver el tema oscuro y viceversa. El control es zona del Chat 3 y pertenece a la cáscara del Paso 4, no a esta calculadora | `js/`, `index.html` | Baja — Paso 4 |
@@ -329,6 +352,95 @@ más trabajo.
 ---
 
 ## 6. Bitácora
+
+### 2026-09-18 — Procedimientos del motor, parte A (Paso 2c-2) · Chat 2
+
+**Resumen.** Cuatro cosas, en el orden que fija §4:
+
+1. **Las dos consecuencias de la enmienda de ADR-007 §3.3 (D16).** `solveSystem`
+   cierra su procedimiento con un paso `final` que enuncia la clasificación y
+   los rangos que la justifican —Rouché-Frobenius escrito en el desarrollo, no
+   solo en el objeto de retorno— y su discriminante pasó de `type` a
+   `classification`.
+2. **D17.** El vocabulario de `type` bajó de 13 tipos a 10 en `docs/API.md` **y
+   en `tests/math/steps-contract.test.js`**, que fijaba `length === 13`.
+3. **Grupo 1** (expansión de Laplace): `determinantByCofactors`,
+   `cofactorMatrix` y `adjugate`.
+4. **Grupo 4**: los pasos de cierre de `conditionNumber`.
+
+La suite pasó de **313 a 329 pruebas, todas en verde**.
+
+**Arquitectura.** Cuatro decisiones:
+
+1. *`determinantByCofactors` registra solo el primer nivel de la expansión.* La
+   función es recursiva; trazarla entera daría `O(n!)` pasos, miles en una 6×6.
+   Lo que se muestra es la fórmula de Laplace aplicada una vez sobre la primera
+   fila, con cada menor como `snapshot` y su determinante ya resuelto. Además,
+   el valor y los pasos salen de **una sola pasada**: calcular el determinante
+   por un lado y volver a expandir para narrarlo habría duplicado un algoritmo
+   factorial solo para mostrarlo (`AI_RULES.md` §22).
+2. *`cofactorMatrix` se acota en 6×6.* No tenía ningún corte —verificado
+   ejecutando: para una 15×15 calcula los 225 menores sin chistar— y el selector
+   de la calculadora llega a 15. Con pasos, eso serían 225 pasos con menores de
+   196 celdas. Arriba de 6 el desarrollo se omite y queda un `info` que lo
+   explica; **el resultado numérico no cambia nunca**. El umbral es 6 y no otro
+   número porque es el mismo en el que `adjugate` deja de pasar por los
+   cofactores y usa `det(A)·A⁻¹`: arriba de ahí las dos funciones cuentan la
+   misma historia en vez de dos distintas.
+3. *Un solo paso `final`, y es el último.* Al encadenar procedimientos apareció
+   que `adjugate` y `conditionNumber` quedaban con dos o tres pasos marcados
+   como conclusión: el heredado de la auxiliar más el propio. Se degradan a
+   `info` los heredados. **Esta regla no está en ADR-007** —la decidí acá— así
+   que queda anotada como D22 para que el Chat 1 la incorpore o la rechace.
+4. *Formato de números inline con `.toFixed(4)`*, igual que `gauss.js` y
+   `lu.js`. Condición de salida acordada con el responsable del proyecto: si en
+   la parte B hace falta el mismo formateo en más de cinco lugares nuevos, pasa
+   a ser una llamada a `formatter/`, que la capa 4 tiene permitido usar.
+
+**Compatibilidad.** La API pública sigue en **95 nombres**, sin altas ni bajas.
+Hay una ruptura de forma: el discriminante de `solveSystem`. Los consumidores
+eran dos, no uno:
+
+- `modules/algebra/operations/system-ops.js`, que ya leía
+  `outcome.classification ?? outcome.type` porque el Chat 3 se adelantó. Sigue
+  funcionando sin cambios, antes y después.
+- **`shared/math/interpolation/spline.js`**, que lo consumía internamente y **no
+  estaba en el plan de esta sesión**. Lo detectó la suite: seis pruebas de
+  interpolación se pusieron en rojo apenas renombré la clave. Es la compuerta
+  funcionando, y la razón por la que el relevamiento previo hay que hacerlo
+  también dentro de `shared/`, no solo en `modules/` y `tests/`.
+
+**Verificación.**
+
+- Línea de base: 313 pruebas, todas pasan, sobre el clon de `develop` en
+  `550e664`. Al terminar: 329.
+- **Las dos invariantes nuevas de la prueba de contrato se validaron mutando el
+  motor.** Sacarle a `conditionNumber` el degradado del `final` heredado hace
+  fallar "hay a lo sumo un paso final"; subir la cota de `cofactorMatrix` a 15
+  hace fallar "ningún procedimiento se pasa de largo". Una invariante que no se
+  puede hacer fallar no protege nada.
+- Para que la cota se pruebe donde importa, la tabla de `steps-contract` incluye
+  ahora una `cofactorMatrix` de 15×15: antes todos los casos eran matrices
+  chicas donde la cota nunca se dispara.
+- Los pasos se verifican **contra el valor devuelto, no contra sí mismos**: los
+  términos que muestra Laplace tienen que sumar el determinante, y las normas
+  que muestra `conditionNumber` tienen que multiplicar al κ(A) devuelto. Si el
+  texto y el número se separan, el desarrollo miente, y eso falla.
+- Las normas del ejemplo de `conditionNumber` se recalcularon a mano, fuera del
+  motor: ‖A‖_F = 10.2470, ‖A⁻¹‖_F = 1.0247, producto 10.5000.
+- Se corrigió de paso un ejemplo de JSDoc que estaba mal desde antes: la
+  solución de `solveSystem([[2,1],[1,3]], [8,13])` es `(2.2, 3.6)`, y el
+  ejemplo decía `(3.4, 3.2)`.
+- Contra `AI_RULES.md` §10: ningún archivo pasa de 275 líneas y la función más
+  larga quedó en 47 efectivas (`solveSystem`). Sin `throw` genéricos, sin `var`,
+  sin globales, sin DOM.
+
+**Próximos pasos.** La parte B: grupos 2 y 3, que arrancan por la decisión de
+cuántos pasos emite un método iterativo. Y tres cosas anotadas y no hechas:
+**D22** (la invariante del `final` único, que debería estar en el ADR), **D23**
+(el tope de 60 pasos, que sale de un criterio mío y debería salir de la
+interfaz) y **D8**, los ejemplos de `toScientific` y `formatNumber` en `API.md`,
+que siguen contradiciendo el comportamiento real y son de esta zona.
 
 ### 2026-09-14 — Sistema de diseño y estilos de la calculadora (Paso 3b) · Chat 4
 

@@ -144,7 +144,7 @@ export const tests = [
       // 2x +  y =  8
       //  x + 3y = 13   ->   x = 2.2, y = 3.6
       const salida = solveSystem(new Matrix([[2, 1], [1, 3]]), [8, 13]);
-      assertEqual(salida.type, 'unique', 'Tipo de solución.');
+      assertEqual(salida.classification, 'unique', 'Clasificación del sistema.');
       assertVectorClose(salida.solution, [2.2, 3.6], 'Solución del sistema.');
     },
   },
@@ -153,8 +153,8 @@ export const tests = [
     fn: () => {
       const A = new Matrix([[4, -2, 1], [1, 5, -3], [2, 1, 6]]);
       const b = [11, -2, 21];
-      const { type, solution } = solveSystem(A, b);
-      assertEqual(type, 'unique', 'Debería tener solución única.');
+      const { classification, solution } = solveSystem(A, b);
+      assertEqual(classification, 'unique', 'Debería tener solución única.');
 
       const x = new Matrix(solution.map((v) => [v]));
       assertMatrixClose(A.multiply(x), b.map((v) => [v]), 'A·x debería reproducir b.');
@@ -165,7 +165,7 @@ export const tests = [
     fn: () => {
       // x + y = 2 ; 2x + 2y = 4  -> la segunda ecuación no aporta información
       const salida = solveSystem(new Matrix([[1, 1], [2, 2]]), [2, 4]);
-      assertEqual(salida.type, 'infinite', 'Tipo de solución.');
+      assertEqual(salida.classification, 'infinite', 'Clasificación del sistema.');
       assertEqual(salida.rankA, salida.rankAug, 'Rango de A igual al de la ampliada.');
       assertTrue(salida.rankA < 2, 'El rango es menor que la cantidad de incógnitas.');
       assertTrue(typeof salida.message === 'string', 'Debería traer un mensaje para mostrar.');
@@ -176,8 +176,67 @@ export const tests = [
     fn: () => {
       // x + y = 2 ; 2x + 2y = 5  -> contradicción
       const salida = solveSystem(new Matrix([[1, 1], [2, 2]]), [2, 5]);
-      assertEqual(salida.type, 'incompatible', 'Tipo de solución.');
+      assertEqual(salida.classification, 'incompatible', 'Clasificación del sistema.');
       assertTrue(salida.rankAug > salida.rankA, 'El rango de la ampliada supera al de A.');
+    },
+  },
+  {
+    name: 'solveSystem cierra el procedimiento con un paso final por cada clasificación',
+    fn: () => {
+      // Antes del Paso 2c-2 el desarrollo terminaba en la última operación de
+      // fila y la clasificación vivía solo en el objeto de retorno: quien leía
+      // únicamente el procedimiento no veía ninguna conclusión. La enmienda de
+      // ADR-007 §3.3 lo cierra con un paso `final` en las tres ramas.
+      const casos = [
+        { A: new Matrix([[2, 1], [1, 3]]), b: [8, 13], esperado: 'determinado' },
+        { A: new Matrix([[1, 1], [2, 2]]), b: [2, 4], esperado: 'indeterminado' },
+        { A: new Matrix([[1, 1], [2, 2]]), b: [2, 5], esperado: 'incompatible' },
+      ];
+      casos.forEach(({ A, b, esperado }) => {
+        const { steps } = solveSystem(A, b);
+        const ultimo = steps[steps.length - 1];
+        assertEqual(ultimo.type, 'final', `El último paso de '${esperado}' debería ser de cierre.`);
+        assertTrue(
+          ultimo.text.includes(esperado),
+          `El cierre debería enunciar que el sistema es ${esperado} (dice: "${ultimo.text}").`,
+        );
+        assertTrue(ultimo.text.includes('rg(A)'), 'El cierre debería mostrar los rangos que lo justifican.');
+      });
+    },
+  },
+  {
+    name: 'hay un solo paso final y está al final',
+    fn: () => {
+      // Un `final` en el medio significaría que la reducción siguió después de
+      // la conclusión, que es justamente lo que el paso viene a evitar.
+      const { steps } = solveSystem(new Matrix([[2, 1], [1, 3]]), [8, 13]);
+      const finales = steps.filter((paso) => paso.type === 'final');
+      assertEqual(finales.length, 1, 'Cantidad de pasos de cierre.');
+      assertEqual(steps.indexOf(finales[0]), steps.length - 1, 'Posición del paso de cierre.');
+    },
+  },
+  {
+    name: 'el cierre del sistema determinado trae la solución',
+    fn: () => {
+      const { steps, solution } = solveSystem(new Matrix([[2, 1], [1, 3]]), [8, 13]);
+      const cierre = steps[steps.length - 1].text;
+      solution.forEach((valor, i) => {
+        assertTrue(
+          cierre.includes(valor.toFixed(4)),
+          `El cierre debería incluir x${i + 1} = ${valor.toFixed(4)}.`,
+        );
+      });
+    },
+  },
+  {
+    name: 'el discriminante se llama classification, no type',
+    fn: () => {
+      // Enmienda de ADR-007 §3.3 (D16): `step.type` y el discriminante del
+      // retorno tenían el mismo nombre con vocabularios distintos. Esta prueba
+      // fija el nombre nuevo y que el viejo no quedó como alias silencioso.
+      const salida = solveSystem(new Matrix([[2, 1], [1, 3]]), [8, 13]);
+      assertEqual(salida.classification, 'unique', 'Clave nueva.');
+      assertEqual(salida.type, undefined, 'La clave vieja no debería seguir existiendo.');
     },
   },
   {
@@ -201,7 +260,7 @@ export const tests = [
     name: 'solveSystem resuelve el caso 1x1',
     fn: () => {
       const salida = solveSystem(new Matrix([[4]]), [12]);
-      assertEqual(salida.type, 'unique', 'Un sistema de una ecuación tiene solución única.');
+      assertEqual(salida.classification, 'unique', 'Un sistema de una ecuación tiene solución única.');
       assertVectorClose(salida.solution, [3], '4x = 12.');
     },
   },
@@ -209,7 +268,7 @@ export const tests = [
     name: 'solveSystem con b nulo devuelve la solución trivial',
     fn: () => {
       const salida = solveSystem(new Matrix([[2, 1], [1, 3]]), [0, 0]);
-      assertEqual(salida.type, 'unique', 'Sistema homogéneo con A invertible.');
+      assertEqual(salida.classification, 'unique', 'Sistema homogéneo con A invertible.');
       assertVectorClose(salida.solution, [0, 0], 'Solución trivial.');
     },
   },

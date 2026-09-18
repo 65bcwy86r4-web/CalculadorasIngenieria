@@ -127,6 +127,60 @@ export const tests = [
     },
   },
   {
+    name: 'determinantByCofactors muestra la expansión del primer nivel',
+    fn: () => {
+      // Un paso por término de la primera fila, más la apertura y el cierre.
+      // Solo el primer nivel: la función es recursiva y trazarla entera sería
+      // O(n!) pasos (ADR-007 §4, grupo 1).
+      const { steps, value } = determinantByCofactors(new Matrix([[6, 1, 1], [4, -2, 5], [2, 8, 7]]));
+      assertEqual(steps.length, 5, 'Apertura + 3 términos + cierre.');
+      assertEqual(steps[0].type, 'info', 'Abre anunciando la fórmula.');
+      const expansiones = steps.filter((paso) => paso.type === 'expand');
+      assertEqual(expansiones.length, 3, 'Un paso expand por columna de la primera fila.');
+      assertEqual(steps[steps.length - 1].type, 'final', 'Cierra con la suma.');
+      assertTrue(
+        steps[steps.length - 1].text.includes(value.toFixed(4)),
+        'El cierre debería traer el determinante.',
+      );
+    },
+  },
+  {
+    name: 'cada término de Laplace trae su menor como snapshot',
+    fn: () => {
+      // El menor es la submatriz sobre la que opera el paso, no un estado
+      // posterior: es el caso que motivó la enmienda del 18/09 a ADR-007 §3.2.
+      const { steps } = determinantByCofactors(new Matrix([[6, 1, 1], [4, -2, 5], [2, 8, 7]]));
+      steps.filter((paso) => paso.type === 'expand').forEach((paso, j) => {
+        assertTrue(Array.isArray(paso.snapshot), `El término ${j + 1} debería traer snapshot.`);
+        assertEqual(paso.snapshot.length, 2, 'El menor de una 3x3 es de 2x2.');
+        assertEqual(paso.snapshot[0].length, 2, 'El menor de una 3x3 es de 2x2.');
+      });
+    },
+  },
+  {
+    name: 'la suma de los términos de Laplace reproduce el determinante',
+    fn: () => {
+      // Verificación cruzada contra el propio procedimiento: si los textos de
+      // los pasos y el valor devuelto se separan, el desarrollo miente.
+      const a = new Matrix([[1, 2, 3], [4, 5, 6], [7, 8, 10]]);
+      const { steps, value } = determinantByCofactors(a);
+      const terminos = steps
+        .filter((paso) => paso.type === 'expand')
+        .map((paso) => Number(paso.text.split('=').pop().trim()));
+      const suma = terminos.reduce((acumulado, termino) => acumulado + termino, 0);
+      assertClose(suma, value, 'Los términos mostrados deberían sumar el determinante.', 1e-9);
+      assertClose(value, determinantByGauss(a).value, 'Y coincidir con Gauss.', 1e-9);
+    },
+  },
+  {
+    name: 'la 1x1 explica la convención en vez de expandir',
+    fn: () => {
+      const { steps } = determinantByCofactors(new Matrix([[5]]));
+      assertEqual(steps.length, 1, 'Un solo paso.');
+      assertEqual(steps[0].type, 'final', 'Y es el cierre.');
+    },
+  },
+  {
     name: 'determinantByCofactors corta en n > 7 por costo factorial',
     fn: () => {
       assertDoesNotThrow(() => determinantByCofactors(Matrix.identity(7)), 'n = 7 debería permitirse.');
@@ -296,6 +350,102 @@ export const tests = [
     fn: () => {
       const a = new Matrix([[7]]);
       assertMatrixClose(a.multiply(adjugate(a).matrix), [[7]], 'A · adj(A) en el caso base.');
+    },
+  },
+  {
+    name: 'cofactorMatrix emite un paso por cofactor, con su menor',
+    fn: () => {
+      const { steps } = cofactorMatrix(new Matrix([[1, 2, 3], [0, 1, 4], [5, 6, 0]]));
+      const computos = steps.filter((paso) => paso.type === 'compute');
+      assertEqual(computos.length, 9, 'n² cofactores para una 3x3.');
+      computos.forEach((paso) => {
+        assertEqual(paso.snapshot.length, 2, 'El menor de una 3x3 es de 2x2.');
+      });
+      assertEqual(steps[0].type, 'info', 'Abre con la fórmula del cofactor.');
+      assertEqual(steps[steps.length - 1].type, 'final', 'Cierra con la matriz completa.');
+    },
+  },
+  {
+    name: 'cofactorMatrix acota el desarrollo arriba de 6x6',
+    fn: () => {
+      // Sin cota, una 15x15 —tamaño que el selector de la calculadora
+      // permite— daría 225 pasos con menores de 196 celdas. El resultado
+      // numérico no cambia; lo que se acota es el relato.
+      const grande = (n) => new Matrix(
+        Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? n + 2 : (i + j) % 3))),
+      );
+      const detallada = cofactorMatrix(grande(6));
+      const acotada = cofactorMatrix(grande(7));
+      assertEqual(detallada.steps.filter((p) => p.type === 'compute').length, 36, '6x6 desarrolla.');
+      assertEqual(acotada.steps.filter((p) => p.type === 'compute').length, 0, '7x7 no desarrolla.');
+      assertTrue(acotada.steps.length <= 2, 'Arriba de la cota quedan apertura y cierre.');
+      assertTrue(
+        acotada.steps[0].text.includes('se omite'),
+        'Y el paso de apertura debería decir que el desarrollo se omite.',
+      );
+      // Lo que no cambia: el resultado.
+      assertEqual(acotada.matrix.rows, 7, 'La matriz de cofactores se calcula igual.');
+    },
+  },
+  {
+    name: 'adjugate cierra con la transposición y sin dos finales',
+    fn: () => {
+      // Al encadenar el procedimiento de cofactorMatrix, su `final` deja de
+      // ser final: se degrada a `info` para que la conclusión sea una sola.
+      const { steps } = adjugate(new Matrix([[1, 2], [3, 4]]));
+      const finales = steps.filter((paso) => paso.type === 'final');
+      assertEqual(finales.length, 1, 'Un solo paso de cierre.');
+      assertEqual(steps[steps.length - 1], finales[0], 'Y es el último.');
+      assertTrue(finales[0].text.includes('Cᵀ'), 'El cierre debería nombrar la transposición.');
+    },
+  },
+  {
+    name: 'adjugate por det(A)·A⁻¹ también explica cómo llegó',
+    fn: () => {
+      const grande = new Matrix(
+        Array.from({ length: 7 }, (_, i) => Array.from({ length: 7 }, (_, j) => (i === j ? 9 : (i + j) % 3))),
+      );
+      const { steps } = adjugate(grande);
+      const finales = steps.filter((paso) => paso.type === 'final');
+      assertEqual(finales.length, 1, 'Un solo paso de cierre.');
+      assertTrue(
+        finales[0].text.includes('det(A) · A⁻¹'),
+        'El cierre debería nombrar la identidad que se usó.',
+      );
+    },
+  },
+  {
+    name: 'conditionNumber explica de dónde sale el número que devuelve',
+    fn: () => {
+      // Era el grupo 4 de ADR-007 §4: heredaba los pasos de la inversión y
+      // terminaba en "el bloque derecho es A⁻¹", sin mencionar nunca las
+      // normas. Forma correcta, contenido equivocado.
+      const salida = conditionNumber(new Matrix([[4, 7], [2, 6]]));
+      const textos = salida.steps.map((paso) => paso.text).join(' | ');
+      assertTrue(textos.includes('‖A‖_F'), 'Debería mostrar la norma de A.');
+      assertTrue(textos.includes('‖A⁻¹‖_F'), 'Debería mostrar la norma de la inversa.');
+
+      const cierre = salida.steps[salida.steps.length - 1];
+      assertEqual(cierre.type, 'final', 'El último paso es el cierre.');
+      assertTrue(cierre.text.includes(salida.value.toFixed(4)), 'Y trae el número devuelto.');
+      assertEqual(
+        salida.steps.filter((paso) => paso.type === 'final').length,
+        1,
+        'El final heredado de inverse se degrada a info.',
+      );
+      assertEqual(salida.steps[0].type, 'info', 'Abre avisando que primero invierte.');
+    },
+  },
+  {
+    name: 'las normas que muestra conditionNumber son las que multiplica',
+    fn: () => {
+      // Verificación cruzada contra el propio texto: si el procedimiento
+      // muestra unos números y devuelve otro, el desarrollo miente.
+      const salida = conditionNumber(new Matrix([[4, 7], [2, 6]]));
+      assertClose(salida.normA * salida.normInverse, salida.value, 'κ = ‖A‖·‖A⁻¹‖.');
+      const cierre = salida.steps[salida.steps.length - 1].text;
+      assertTrue(cierre.includes(salida.normA.toFixed(4)), 'El cierre trae ‖A‖_F.');
+      assertTrue(cierre.includes(salida.normInverse.toFixed(4)), 'El cierre trae ‖A⁻¹‖_F.');
     },
   },
   {

@@ -105,6 +105,14 @@ constante mayor (hay que volver a recorrer las filas ya procesadas).
 
 **Implementación:** `algebra/gauss.js::reducedRowEchelon`.
 
+**Nota sobre `solveSystem`, que se construye sobre esto:** su procedimiento
+cierra con un paso `final` que enuncia la clasificación del sistema y los
+rangos que la justifican. Antes terminaba en la última operación de fila: el
+veredicto de Rouché-Frobenius existía solo en el objeto de retorno, así que
+quien leía el desarrollo veía la reducción y ninguna conclusión. El
+discriminante de ese retorno se llama `classification` —no `type`— desde la
+enmienda de ADR-007 §3.3.
+
 ---
 
 ## 3. Determinante — Gauss vs. Cofactores (Laplace)
@@ -154,8 +162,15 @@ y lo ofrece únicamente como recurso didáctico para ver la definición
 clásica "en acción", nunca como método de cálculo general.
 
 **Implementación:** `algebra/determinant.js::determinantByGauss` y
-`::determinantByCofactors`. Las dos devuelven `{ value, steps }`; el
-desarrollo de la expansión de Laplace es el Paso 2c-2 (ADR-007 §4).
+`::determinantByCofactors`. Las dos devuelven `{ value, steps }`.
+
+**Qué muestra el procedimiento de la expansión:** el **primer nivel** y nada
+más — un paso por cada término `a₁ⱼ · (−1)^(1+j) · det(M₁ⱼ)` de la primera
+fila, con el menor `M₁ⱼ` adjunto y su determinante ya resuelto. La recursión
+por debajo no se registra: trazarla entera daría `O(n!)` pasos, miles ya en una
+6×6. No es solo una cuestión de costo — es lo que hace legible el
+procedimiento: lo que se quiere ver es la definición de Laplace aplicada una
+vez, no el árbol completo de subdeterminantes.
 
 ---
 
@@ -212,6 +227,14 @@ una fila). La **adjunta** (o adjunta clásica) es `adj(A) = Cᵀ`.
   `adj(A) = det(A) · A⁻¹`, reutilizando `determinantByGauss` e
   `inverse` (ambos `O(n³)`) en vez de `n²` determinantes adicionales.
   Mismo resultado matemático, mucho más rápido para matrices grandes.
+
+**Qué muestra el procedimiento:** un paso por cofactor, `n²` en total, cada
+uno con su menor `Mᵢⱼ` adjunto. **Hasta 6×6.** Por encima de ese tamaño el
+desarrollo se omite y queda una nota que lo explica: `n²` pasos con menores de
+`(n−1)²` celdas crece muy rápido —una 15×15 daría 225 pasos con menores de 196
+celdas— y deja de ser un procedimiento para volverse un volcado. El umbral es
+el mismo 6 en el que la adjunta cambia de estrategia, así que las dos funciones
+cuentan la misma historia. El resultado numérico no se acota nunca.
 
 **Caso base `n = 1`:** el menor de una matriz `1×1` es la matriz vacía, y
 `det(∅) = 1` por convención (es el producto vacío, igual que `0! = 1`). El

@@ -110,20 +110,30 @@ export function rank(matrix, tolerance = DEFAULT_TOLERANCE) {
  * lanza una excepción cuando el sistema no tiene solución única: un
  * sistema incompatible o con infinitas soluciones es un resultado
  * matemático válido, no un error de uso, así que se devuelve un objeto
- * con `type` discriminado para que el llamador decida qué hacer.
+ * con `classification` discriminada para que el llamador decida qué hacer.
  * Sí se lanza DimensionError si A y b son incompatibles en tamaño, porque
  * eso sí es un error de uso (los arreglos no representan el mismo sistema).
+ *
+ * El discriminante se llama `classification` y no `type` desde la enmienda
+ * de ADR-007 §3.3: `step.type` y el discriminante del retorno tenían el
+ * mismo nombre con vocabularios distintos, en dos objetos que una interfaz
+ * recorre en la misma función de renderizado. Los valores no cambiaron.
+ *
+ * El procedimiento cierra con un paso `final` que enuncia la clasificación
+ * y los rangos que la justifican. Sin él, quien lee solo el desarrollo ve
+ * la reducción y ninguna conclusión: el veredicto quedaba únicamente en el
+ * objeto de retorno.
  *
  * @param {Matrix} A - matriz de coeficientes (n×n o m×n)
  * @param {number[]} b - vector de términos independientes (largo = A.rows)
  * @param {number} [tolerance=DEFAULT_TOLERANCE]
- * @returns {{ type: 'unique', solution: number[], steps: Array, rref: Matrix }
- *         | { type: 'infinite', message: string, steps: Array, rref: Matrix }
- *         | { type: 'incompatible', message: string, steps: Array }}
+ * @returns {{ classification: 'unique', solution: number[], steps: Array, rref: Matrix, rankA: number, rankAug: number }
+ *         | { classification: 'infinite', message: string, steps: Array, rref: Matrix, rankA: number, rankAug: number }
+ *         | { classification: 'incompatible', message: string, steps: Array, rankA: number, rankAug: number }}
  * @throws {DimensionError} si b.length !== A.rows
  * @example
  * solveSystem(new Matrix([[2,1],[1,3]]), [8, 13]);
- * // { type: 'unique', solution: [3.4, 3.2], ... } (aprox.)
+ * // { classification: 'unique', solution: [2.2, 3.6], ... }
  */
 export function solveSystem(A, b, tolerance = DEFAULT_TOLERANCE) {
   if (!Array.isArray(b) || b.length !== A.rows) {
@@ -137,25 +147,41 @@ export function solveSystem(A, b, tolerance = DEFAULT_TOLERANCE) {
   const rankAug = rrefResult.pivots.length;
   const n = A.cols;
 
+  const steps = rrefResult.steps;
+
   if (rankA < rankAug) {
+    steps.push({
+      type: 'final',
+      text: `rg(A) = ${rankA} < rg(A|b) = ${rankAug}: el sistema es incompatible, no tiene solución.`,
+    });
     return {
-      type: 'incompatible',
+      classification: 'incompatible',
       message: 'El sistema es incompatible (no tiene solución): el rango de A es menor que el rango de la matriz ampliada [A|b].',
-      steps: rrefResult.steps,
+      steps,
       rankA,
       rankAug,
     };
   }
   if (rankA < n) {
+    const freedom = n - rankA;
+    steps.push({
+      type: 'final',
+      text: `rg(A) = rg(A|b) = ${rankA} < ${n} incógnitas: el sistema es compatible indeterminado, con ${freedom} grado(s) de libertad (infinitas soluciones).`,
+    });
     return {
-      type: 'infinite',
+      classification: 'infinite',
       message: `El sistema es compatible indeterminado: tiene infinitas soluciones (rango = ${rankA} < ${n} incógnitas).`,
-      steps: rrefResult.steps,
+      steps,
       rref: rrefResult.result,
       rankA,
       rankAug,
     };
   }
   const solution = rrefResult.result.data.map((row) => row[row.length - 1]);
-  return { type: 'unique', solution, steps: rrefResult.steps, rref: rrefResult.result, rankA, rankAug };
+  steps.push({
+    type: 'final',
+    text: `rg(A) = rg(A|b) = ${n} = cantidad de incógnitas: el sistema es compatible determinado. `
+      + `x = (${solution.map((value) => value.toFixed(4)).join(', ')})`,
+  });
+  return { classification: 'unique', solution, steps, rref: rrefResult.result, rankA, rankAug };
 }

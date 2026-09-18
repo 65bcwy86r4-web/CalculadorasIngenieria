@@ -73,8 +73,8 @@ export function cubicSplineInterpolate(xs, ys, x, options = {}) {
       b[k] = 6 * ((ys[i + 1] - ys[i]) / h[i] - (ys[i] - ys[i - 1]) / h[i - 1]);
     }
     const solved = solveSystem(A, b);
-    if (solved.type !== 'unique') {
-      throw new InterpolationError('No se pudo resolver el sistema tridiagonal del spline (esto no debería ocurrir con xs estrictamente creciente).', { solverResult: solved.type });
+    if (solved.classification !== 'unique') {
+      throw new InterpolationError('No se pudo resolver el sistema tridiagonal del spline (esto no debería ocurrir con xs estrictamente creciente).', { solverResult: solved.classification });
     }
     for (let k = 0; k < interiorCount; k++) M[k + 1] = solved.solution[k];
   }

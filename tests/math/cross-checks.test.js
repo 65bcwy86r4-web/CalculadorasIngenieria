@@ -257,8 +257,8 @@ export const tests = [
         { A: new Matrix([[4]]), b: [12] },
       ];
       casos.forEach(({ A, b }, i) => {
-        const { type, solution } = solveSystem(A, b);
-        assertTrue(type === 'unique', `Caso ${i}: debería tener solución única.`);
+        const { classification, solution } = solveSystem(A, b);
+        assertTrue(classification === 'unique', `Caso ${i}: debería tener solución única.`);
 
         const porInversa = inverse(A).inverse.multiply(new Matrix(b.map((v) => [v])));
         assertVectorClose(
