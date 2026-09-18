@@ -3,7 +3,7 @@
 **Fuente de verdad operativa del proyecto.** Todo chat lo lee al empezar. El
 responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 
-Última actualización: **2026-09-14**
+Última actualización: **2026-09-18**
 
 - **Repositorio:** https://github.com/65bcwy86r4-web/CalculadorasIngenieria
 - **Publicado en:** https://65bcwy86r4-web.github.io/CalculadorasIngenieria/
@@ -11,6 +11,10 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 - **Ramas:** se trabaja en `develop`. `main` queda estable y es la rama desde la
   que publica GitHub Pages: **el sitio no se actualiza hasta que `develop` se
   fusiona en `main`.**
+- **Estado de publicación (2026-09-18):** `main` está en `b7076ac`, el commit de
+  consolidación del 2026-09-12, **17 commits por detrás de `develop`**. Nada de
+  lo hecho desde entonces —motor corregido, calculadora, estilos— está en la URL
+  pública. Se resuelve fusionando `develop` en `main`.
 
 ---
 
@@ -22,15 +26,17 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 | `docs/` técnica | Architecture, API, Algorithms, Roadmap completos | 1 / 2 |
 | `docs/governance/` | 4 documentos rectores, versión 1.0 | 1 |
 | `tests/` | **313 pruebas en 17 archivos, todas pasan.** Pasos 1, 1b, 2a y 2c-1 cerrados. Incluye `steps-contract.test.js`. | 5 |
-| `modules/` | **`algebra/` completa (Versión 3a, Paso 3).** 21 archivos, 27 operaciones, importando solo desde `shared/math/index.js`. Primer consumidor real de la API pública. Sin estilos: `css/algebra.css` todavía no existe (Chat 4). | 3 |
+| `modules/` | **`algebra/` completa (Versión 3a, Paso 3).** 21 archivos, 27 operaciones, importando solo desde `shared/math/index.js`. Primer consumidor real de la API pública. Con estilos desde el Paso 3b. | 3 |
 | `css/` | **Sistema de diseño completo (Paso 3b).** 5 archivos, ninguno por encima de las 500 líneas efectivas: `tokens.css` (tokens en tres capas, temas claro y oscuro con `light-dark()`), `base.css` (reset y tipografía), `components.css` (cáscara y controles), `results.css` (bloques de resultado, avisos y procedimiento) y `algebra.css` (lo específico del módulo). Todo par color/superficie medido ≥ 4.5:1. El 404 de `css/algebra.css` está cerrado | 4 |
 | `assets/` | Vacío, y por ahora corresponde: el sistema usa stack de fuentes del sistema y no hay imágenes | 4 |
 | `js/` | Vacío. Es el Paso 4 | 3 |
 | `legacy/` | Congelado. No se importa desde ningún lado. | — |
 
-**Versión del roadmap en curso:** transición de Versión 2 (motor) a Versión 3
-(interfaz). Ninguna calculadora consume el motor todavía; esa es la brecha
-principal.
+**Versión del roadmap en curso:** Versión 3 en curso. La 3a está completa y
+funcionando: la calculadora de álgebra consume el motor, con estilos, y se
+verificó en navegador el 2026-09-18 —sin 404, sin errores de JavaScript,
+`det([[4,7,2],[2,6,1],[1,1,3]]) = 25` con sus cuatro pasos—. Lo que falta de la
+Versión 3 es la cáscara: dashboard, navegación, historial y favoritos (Paso 4).
 
 ---
 
@@ -60,11 +66,12 @@ principal.
 | 3 | Paso 3c: ganchos de estado para el panel (pedido del Chat 4) | Aprobado el 2026-09-14, no bloquea al 3b |
 | — | — | Ninguna otra sesión abierta |
 
-**El contrato está congelado: el Paso 3 puede arrancar.** El Chat 3 tiene en
-`docs/API.md`, sección "El contrato de `steps`", todo lo que necesita para
-construir el panel de procedimiento, y la garantía de que la forma no cambia
-aunque nueve funciones todavía devuelvan `steps: []`. El Paso 2c-2 puede correr
-en paralelo sin tocar su zona.
+**Siguientes, independientes entre sí:** el **Paso 2c-2** (Chat 2) y el
+**Paso 3c** (Chat 3). Ninguno bloquea al otro y las zonas no se tocan, así que
+el orden lo elige el responsable del proyecto.
+
+Verificación del 2026-09-18, sobre `7d10dd3`: **313 pruebas en verde** y la
+calculadora funcionando en navegador. Es el estado que se lleva a `main`.
 
 Los cuatro archivos viejos de `shared/math/errors/` se borraron y el Paso 2a
 quedó commiteado en `develop` el 2026-09-13. Verificado contra el repositorio
@@ -309,7 +316,7 @@ más trabajo.
 | D18 | Los métodos de la clase `Matrix` quedan fuera del contrato de `steps`: `transpose`, `trace`, `add`, `subtract`, `multiply`, `scalarMultiply`, `power`, `frobeniusNorm`, las cinco de clasificación y los constructores `identity`/`diagonal` devuelven una `Matrix` o un número pelados, sin clave `steps` —ni siquiera vacía—. No es un defecto: ADR-007 §3.4 no los alcanza. Pero son **12 de las 27 operaciones** de la calculadora, que quedan sin desarrollo posible, y la V1 sí mostraba procedimiento para varias (por ejemplo, el producto elemento a elemento). Si se quiere que lo tengan, es decisión del Chat 1 y trabajo del Chat 2. La interfaz ya las distingue de las que tienen `steps: []` | `shared/math/algebra/matrix.js`, ADR-007 | Baja — decidir en Chat 1 |
 | D11 | `known-defects.test.js` quedó vacío (0 pruebas, el archivo con su explicación intacta) para que el próximo hallazgo tenga dónde anotarse. Si el Chat 5 prefiere borrarlo y recrearlo cuando haga falta, hay que sacarlo también de la estructura de `tests/README.md`, que es su zona | `tests/math/`, `tests/README.md` | Baja — decidir en Chat 5 |
 | D19 | `css/algebra.css` encadena `tokens.css`, `base.css` y `components.css` con `@import`, que los descarga en serie. Se hizo así porque `modules/algebra/index.html` enlaza una sola hoja y ese archivo es del Chat 3: evitar un pedido de cambio de HTML por algo que el CSS resuelve solo. Cuando el Paso 4 arme la cáscara compartida, el HTML debería enlazar las cuatro hojas en paralelo y estos `@import` desaparecer | `css/algebra.css`, `modules/*/index.html` | Baja — Paso 4 |
-| D20 | En pantallas angostas el menú lateral no puede ser un cajón superpuesto. El único estado que le pone el JavaScript es `.is-hidden` (`app.js:408`) y su ausencia significa "visible", así que un cajón arrancaría abierto tapando la pantalla en cada carga. Queda resuelto como tira desplegable en el flujo, con altura acotada y desplazamiento propio: utilizable, pero come 15 rem de alto arriba del contenido. Un cajón de verdad necesita un segundo estado del Chat 3 (`.sidebar.is-open`, cerrado por defecto bajo cierto ancho). **Evidencia:** `components.css` §13 y `app.js:408`. *Propuesta del Chat 4 al Chat 3; la confirma el responsable del proyecto o el Chat 1* | `modules/algebra/app.js`, `css/components.css` | Media — Paso 4 |
+| D20 | En pantallas angostas el menú lateral no puede ser un cajón superpuesto. El único estado que le pone el JavaScript es `.is-hidden` (`app.js:408`) y su ausencia significa "visible", así que un cajón arrancaría abierto tapando la pantalla en cada carga. Queda resuelto como tira desplegable en el flujo, con altura acotada y desplazamiento propio: utilizable, pero come 15 rem de alto arriba del contenido. Un cajón de verdad necesita un segundo estado del Chat 3 (`.sidebar.is-open`, cerrado por defecto bajo cierto ancho). **Evidencia:** `components.css` §13 y `app.js:408`. **Confirmada por el Chat 1 el 2026-09-18:** el segundo estado se agrega en el Paso 4, junto con la cáscara, no antes — el cajón pertenece a la navegación de la plataforma y hacerlo ahora dentro de una calculadora lo ataría al módulo equivocado | `modules/algebra/app.js`, `css/components.css` | Media — Paso 4 |
 | D21 | No hay interruptor de tema. Los temas funcionan por `prefers-color-scheme` y `tokens.css` deja listos los ganchos `[data-theme="light"]` y `[data-theme="dark"]` en `<html>`, pero nada los escribe. Quien tenga el sistema operativo en claro no puede ver el tema oscuro y viceversa. El control es zona del Chat 3 y pertenece a la cáscara del Paso 4, no a esta calculadora | `js/`, `index.html` | Baja — Paso 4 |
 
 ---
