@@ -1,7 +1,7 @@
 # ADR-007 — Contrato de `steps`: forma de retorno del procedimiento
 
 - **Fecha:** 2026-09-13
-- **Estado:** Aceptado, con la enmienda del 2026-09-13 en §3.3
+- **Estado:** Aceptado, con enmiendas del 2026-09-13 (§3.3) y del 2026-09-18 (§4)
 - **Decide:** responsable del proyecto
 - **Relacionado:** HANDOFF D15, D14, D16, ADR-006 (interfaz antes que port)
 
@@ -242,6 +242,42 @@ Puede repartirse en varias sesiones. Cada grupo entrega sus pasos, sus pruebas y
 la documentación actualizada.
 
 ---
+
+> ### Enmienda del 2026-09-18 — corrección de los grupos
+>
+> El Chat 2 relevó las funciones al arrancar el Paso 2c-2 y encontró que la
+> agrupación de arriba no coincide con el motor. Verificado ejecutando:
+>
+> **Son once funciones con `steps: []`, no nueve.** A la lista de §1 se suman
+> `eigenvaluesQR`, `jacobiEigenDecomposition` —que ya estaban contempladas en el
+> grupo 3— y **`eigenvalues2x2`, que no figuraba en ningún grupo**. Es un olvido
+> de esta tabla, no del motor: `eigenvalues2x2` **pertenece al grupo 3**, con el
+> resto de la familia de autovalores.
+>
+> **El grupo 4 no está hecho, aunque lo parezca.** `conditionNumber` devuelve
+> hoy pasos no vacíos, pero los **hereda de `inverse`** desde el Paso 2c-1, y
+> describen la inversión, no el número de condición:
+>
+> ```
+> conditionNumber([[4,7],[2,6]])  ->  value 10.5000
+>   1. [elim]  F2 → F2 − (0.5000)·F1
+>   2. [scale] F2 → F2 / (2.5000)
+>   3. [elim]  F1 → F1 − (7.0000)·F2
+>   4. [scale] F1 → F1 / (4.0000)
+>   5. [final] Se obtuvo la identidad en el bloque izquierdo: el bloque derecho es A⁻¹.
+> ```
+>
+> El procedimiento termina en la inversa y **nunca menciona las normas ni de
+> dónde sale 10.5**. Pasa la prueba de contrato —tiene pasos, tipos válidos y
+> textos no vacíos— y aun así deja al usuario sin la explicación que pidió. Es
+> la clase de defecto que el contrato no puede atrapar: forma correcta,
+> contenido equivocado.
+>
+> El grupo 4 consiste entonces en **agregar los pasos de cierre** que faltan
+> —‖A‖_F, ‖A⁻¹‖_F y κ(A) como su producto— después de los heredados, no en
+> escribir el procedimiento desde cero. Vale como regla general: **heredar los
+> pasos de una función auxiliar no alcanza si el procedimiento resultante no
+> explica la operación que se pidió.**
 
 ## 5. Consecuencias
 

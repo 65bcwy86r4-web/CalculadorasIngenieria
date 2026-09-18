@@ -158,6 +158,13 @@ Cerró D14 con la división por método: `eigen.js` (233 líneas),
 
 ### Paso 2c-2 — Escribir los procedimientos · Chat 2 · **siguiente**
 
+> **Corrección del 2026-09-18 (Chat 1), tras el relevamiento del Chat 2:** son
+> **once** funciones con `steps: []`, no nueve; `eigenvalues2x2` faltaba en los
+> grupos y va al **grupo 3**; y el **grupo 4 no está hecho** — `conditionNumber`
+> hereda los pasos de `inverse`, que describen la inversión y no dicen de dónde
+> sale κ(A). Detalle y evidencia en la enmienda de
+> [ADR-007](adr/ADR-007-contrato-de-steps.md) §4.
+
 Además de los cuatro grupos de abajo, arranca con las dos consecuencias de la
 enmienda de [ADR-007](adr/ADR-007-contrato-de-steps.md) §3.3 (D16):
 
