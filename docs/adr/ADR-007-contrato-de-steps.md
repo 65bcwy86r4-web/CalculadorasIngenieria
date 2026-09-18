@@ -1,7 +1,7 @@
 # ADR-007 — Contrato de `steps`: forma de retorno del procedimiento
 
 - **Fecha:** 2026-09-13
-- **Estado:** Aceptado, con enmiendas del 2026-09-13 (§3.3) y del 2026-09-18 (§4)
+- **Estado:** Aceptado, con enmiendas del 2026-09-13 (§3.3) y del 2026-09-18 (§3.2 y §4)
 - **Decide:** responsable del proyecto
 - **Relacionado:** HANDOFF D15, D14, D16, ADR-006 (interfaz antes que port)
 
@@ -96,6 +96,28 @@ todavía tengan `steps: []`.
   el factor que se está construyendo.
 - `detail` no tiene forma fija. Es para que una interfaz pueda resaltar la fila,
   la columna o el factor involucrado; ninguna calculadora debe depender de él.
+
+> ### Enmienda del 2026-09-18 — qué puede ser un `snapshot`
+>
+> La definición de arriba —"el estado después del paso"— sirve para los métodos
+> que transforman una matriz progresivamente (Gauss, Gauss-Jordan, LU), que eran
+> los únicos que registraban pasos cuando se escribió. **No sirve para los
+> métodos que no tienen estado que evolucione.**
+>
+> En la expansión de Laplace no hay una matriz que se vaya modificando: hay una
+> matriz original y, en cada término, un **menor** distinto. Lo mismo en la
+> matriz de cofactores. El menor no es "el estado después del paso" —es la
+> submatriz sobre la que el paso opera— y sin embargo es exactamente lo que el
+> estudiante necesita ver.
+>
+> `snapshot` pasa a definirse como **la matriz que ese paso vuelve
+> comprensible**: el estado resultante donde hay uno, y la submatriz sobre la
+> que el paso opera donde no lo hay. Sigue siendo opcional y sigue sin poder
+> ser un requisito para renderizar.
+>
+> Se descartó la alternativa de meter los menores en `detail`: `detail` no se
+> dibuja por definición, así que empujar ahí lo más didáctico del procedimiento
+> lo volvería invisible.
 
 ### 3.3 Vocabulario cerrado de `type`
 
