@@ -119,6 +119,35 @@ todavía tengan `steps: []`.
 > dibuja por definición, así que empujar ahí lo más didáctico del procedimiento
 > lo volvería invisible.
 
+> ### Enmienda del 2026-09-18 (2) — un solo paso `final`, y es el último
+>
+> Al encadenar procedimientos en el Paso 2c-2 apareció una situación que el
+> contrato original no contemplaba. `adjugate` hereda los pasos de
+> `cofactorMatrix` y agrega su propio cierre; `conditionNumber` hereda los de
+> `inverse` y agrega los suyos. El resultado eran procedimientos que terminaban
+> con dos y tres pasos marcados `final`, sin forma de que la interfaz supiera
+> cuál era la conclusión.
+>
+> Se incorpora al contrato la regla que el Chat 2 aplicó sobre la marcha (D22):
+>
+> **Un procedimiento tiene a lo sumo un paso `final`, y si lo tiene es el
+> último del arreglo. Cuando una función encadena los pasos de una auxiliar y
+> agrega pasos posteriores, el `final` heredado se degrada a `info`.**
+>
+> "A lo sumo" y no "exactamente": `rank`, `rowEchelon`, `reducedRowEchelon` y
+> `luDecomposition` no cierran con un `final` y no tienen por qué hacerlo —
+> devuelven un objeto transformado, no un número al que se llegue. Obligar un
+> cierre ahí sería inventar una frase para cumplir el contrato.
+>
+> Por qué `info` y no borrar el paso heredado: el texto sigue siendo verdadero y
+> sigue siendo parte del razonamiento. "Se obtuvo la identidad en el bloque
+> izquierdo: el bloque derecho es A⁻¹" explica por qué el procedimiento tiene
+> derecho a seguir; lo único que dejó de ser cierto es que ahí termina.
+>
+> La regla es del contrato y no de cada función: vale también para la parte B,
+> donde `diagonalize` va a heredar de `eigenvalues` y de `eigenvectors` a la
+> vez.
+
 ### 3.3 Vocabulario cerrado de `type`
 
 Se estandariza sobre lo que ya existe, extendido con lo que falta. Un `type`
@@ -228,10 +257,26 @@ funciones alcanzadas por este ADR y verifica, de forma genérica:
 2. Tiene `steps`, y es un arreglo.
 3. Cada paso tiene `type` dentro del vocabulario de §3.3 y un `text` no vacío.
 4. Si tiene `snapshot`, es un arreglo bidimensional de números finitos.
+5. Hay a lo sumo un paso `final`, y si lo hay es el último (enmienda 2 de §3.2).
 
 Es la prueba que impide que el contrato se desarme con la próxima función que
 alguien agregue. Va en `tests/math/`, que es zona compartida del Chat 2
 (`CHAT_ROLES.md` §4).
+
+**Lo que esta prueba no puede verificar, y cómo se cubre.** Es una prueba de
+forma: recorre una tabla de invocaciones y comprueba la estructura de lo que
+sale. Dos límites que hay que tener presentes y no pretender que cubre:
+
+- **No lee el texto.** Un procedimiento puede cumplir los cinco puntos y no
+  explicar la operación que se pidió — es exactamente lo que pasó con
+  `conditionNumber` heredando los pasos de `inverse` (§4). Antes de dar por
+  cerrado el Paso 2c-2, el Chat 5 lee los textos de una muestra de
+  procedimientos; la prueba de contrato no reemplaza esa lectura.
+- **Solo ve los tamaños que están en su tabla.** Cualquier propiedad que dependa
+  del tamaño de la entrada —la cota de legibilidad es el caso— queda verificada
+  para las matrices de la tabla y para ninguna otra. Una propiedad así se prueba
+  contra el tamaño máximo que la interfaz permite (`MAX_SIZE = 15` en
+  `modules/algebra/app.js`), no contra una 3×3.
 
 ---
 
