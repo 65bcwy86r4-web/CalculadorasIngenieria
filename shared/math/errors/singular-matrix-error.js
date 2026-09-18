@@ -1,5 +1,5 @@
 /**
- * SingularMatrixError.js
+ * singular-matrix-error.js
  * ---------------------------------------------------------------------------
  * Error específico para operaciones que requieren que una matriz sea
  * invertible (rango completo / determinante distinto de cero) y la matriz
@@ -13,7 +13,7 @@
  * ---------------------------------------------------------------------------
  */
 
-import { MathError } from './MathError.js';
+import { MathError } from './math-error.js';
 
 export class SingularMatrixError extends MathError {
   /**
@@ -21,7 +21,7 @@ export class SingularMatrixError extends MathError {
    * @param {Object} [context={}] - Ej: { rank: 2, size: 3 }.
    *
    * @example
-   * import { SingularMatrixError } from '../errors/SingularMatrixError.js';
+   * import { SingularMatrixError } from '../errors/singular-matrix-error.js';
    * throw new SingularMatrixError(
    *   'La matriz es singular: no tiene inversa.',
    *   { rank: 2, size: 3 }

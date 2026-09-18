@@ -1,8 +1,23 @@
 # CHAT_ROLES.md
 
-Versión: 1.0
+Versión: 1.2
 
 Estado: Obligatorio
+
+> **Cambios de la 1.1 (2026-09-13).** Se abre `docs/HANDOFF.md` a todos los
+> chats: cada uno escribe su propia entrada de bitácora y puede proponer tareas
+> y deuda técnica, en vez de entregarle el informe al responsable del proyecto
+> para que lo pegue. Las secciones que fijan el rumbo —decisiones y orden del
+> plan— siguen siendo del Chat 1. El detalle está en §6.
+>
+> Motivo: en la sesión del Paso 1 el Chat 5 editó el HANDOFF directamente. El
+> resultado fue mejor que el flujo previsto, así que se cambia la regla en vez
+> de pedir que se cumpla una que ya nadie iba a seguir.
+>
+> **Cambios de la 1.2 (2026-09-14).** Se agrega §6.1: el prompt de arranque no
+> describe la tarea, apunta al HANDOFF. Motivo: el prompt y el paso escrito se
+> desincronizaron con un día de diferencia y el Chat 4 lo detectó antes de
+> arrancar. Dos fuentes para la misma información se separan solas.
 
 ---
 
@@ -164,7 +179,7 @@ No valida por lectura: valida ejecutando.
 | `modules/`, `js/`, `index.html` | 3 — Interfaz |
 | `css/`, `assets/` | 4 — Diseño |
 | `tests/` | 5 — QA |
-| `docs/HANDOFF.md` | El responsable del proyecto (Bryan) |
+| `docs/HANDOFF.md` | **Compartido.** Se reparte por sección: ver §6 |
 | `legacy/` | Nadie. Congelado. |
 
 Un chat que necesite tocar algo fuera de su zona **escala al Chat 1**. No lo
@@ -206,11 +221,84 @@ Cada chat, **al iniciar**, lee:
 4. La documentación específica de su capa
 
 Cada chat, **al terminar**, produce el Informe de la Fase 7 de `WORKFLOW.md`
-(Resumen / Arquitectura / Compatibilidad / Próximos pasos). El responsable del
-proyecto pega ese informe en `docs/HANDOFF.md`.
+(Resumen / Arquitectura / Compatibilidad / Próximos pasos) y **lo escribe él
+mismo** en `docs/HANDOFF.md`.
 
 Sin ese ciclo, los chats se desincronizan en cuestión de días: dos de ellos
 asumen versiones distintas del mismo archivo y el trabajo se pisa.
+
+## Qué puede tocar cada chat en el HANDOFF
+
+`docs/HANDOFF.md` es el único archivo compartido por todos los chats. Para que
+eso no se convierta en un problema, se reparte por sección:
+
+| Sección | Quién escribe |
+|---|---|
+| §1 Estado general | Cada chat, **solo su propia fila** |
+| §2 Decisiones vigentes (ADR) | Chat 1, únicamente |
+| §3 Trabajo en curso | Cada chat, **solo su propia fila** |
+| §4 Próximas tareas | Cada chat puede **agregar** una tarea; **reordenar el plan o crear un paso nuevo es del Chat 1** |
+| §5 Deuda técnica | Cualquier chat agrega. Tacharla como resuelta, solo quien la resolvió |
+| §6 Bitácora | Cada chat escribe su propia entrada, arriba de todo |
+
+Reglas que sostienen el reparto:
+
+1. **La bitácora es de agregar, no de editar.** Nadie corrige ni reescribe la
+   entrada de otro chat, aunque contenga un error. Si algo quedó mal, se aclara
+   en la entrada nueva. El valor de la bitácora es que es un registro de lo que
+   pasó, no un documento pulido.
+
+2. **Cada entrada dice qué chat la escribió y en qué fecha**, con el formato
+   `### AAAA-MM-DD — Título · Chat N`, y sigue las cuatro partes de la Fase 7.
+
+3. **Agregar una tarea no es reordenar el plan.** Un chat puede anotar en §4
+   algo que descubrió que hay que hacer. Lo que no puede es decidir que va
+   antes que otra cosa, partir un paso en dos, o cambiar a qué versión del
+   roadmap pertenece. Eso mueve prioridades de todo el proyecto y va al Chat 1,
+   que lo resuelve con un ADR.
+
+4. **Asignarle trabajo a otro chat es una propuesta, no una orden.** Se escribe
+   como tal, y la confirma el responsable del proyecto o el Chat 1.
+
+5. **Un hallazgo se reporta con evidencia reproducible**: qué entrada, qué
+   devolvió, qué debería devolver, en qué archivo. Un renglón que dice "esto
+   anda mal" obliga al chat siguiente a rehacer la investigación entera.
+
+6. **Actualizar la fecha de "Última actualización" del encabezado** es parte de
+   escribir en el archivo.
+
+## 6.1 El prompt apunta acá, no describe la tarea
+
+El prompt con el que se abre un chat establece **quién es** y **qué no puede
+tocar**. **No dice qué hacer**: eso sale de `docs/HANDOFF.md` §3 y §4.
+
+La razón es concreta y ya pasó: mientras el prompt describía la tarea, había dos
+textos sobre lo mismo escritos en momentos distintos, y se separaron. El Chat 4
+lo detectó antes de arrancar; el siguiente podría no detectarlo y ejecutar la
+versión equivocada sin que nadie se entere.
+
+Reglas que lo sostienen:
+
+1. **Una tarea nueva se escribe en §4 del HANDOFF, nunca en el prompt.**
+2. **Si el prompt y el HANDOFF se contradicen, manda el HANDOFF.** El chat avisa
+   la contradicción y frena; no elige por su cuenta.
+3. **Si un ADR está referenciado, el ADR manda sobre cualquier resumen**,
+   incluido el del propio HANDOFF.
+4. **Todo chat confirma su tarea antes de empezar.** Es lo que atrapa un §3
+   ambiguo o vencido antes de que cueste trabajo.
+
+## Por qué se abrió el archivo
+
+La versión 1.0 reservaba el HANDOFF para el responsable del proyecto, y el
+ciclo previsto era: el chat entrega el informe, la persona lo pega. En la
+práctica eso agrega un paso manual entre el momento en que existe la
+información y el momento en que queda registrada — que es justo donde se pierde.
+
+El riesgo del cambio es real y conviene tenerlo a la vista: si cinco chats
+escriben en el mismo archivo sin coordinarse, el HANDOFF se vuelve un montón
+de anotaciones en vez de un estado. El reparto por sección de arriba es lo que
+lo evita, y la regla 3 en particular es la que impide que el plan del proyecto
+lo termine ordenando el último chat que habló.
 
 ---
 
@@ -222,9 +310,12 @@ asumen versiones distintas del mismo archivo y el trabajo se pisa.
 3. No modificar archivos fuera de la zona propia.
 4. Ante una decisión de arquitectura: proponer y esperar aprobación, no
    implementar (`AI_RULES.md` §28).
-5. Terminar siempre con el Informe de la Fase 7.
+5. Terminar siempre con el Informe de la Fase 7, y escribirlo en la bitácora
+   de `docs/HANDOFF.md` antes de cerrar la sesión.
 6. Si detecta un incumplimiento de estas reglas en código existente, reportarlo
    aunque no sea de su zona. Reportar sí; arreglar no.
+7. En el HANDOFF, respetar el reparto por sección de §6: agregar información
+   propia, sí; reordenar el plan o tocar lo que escribió otro chat, no.
 
 ---
 

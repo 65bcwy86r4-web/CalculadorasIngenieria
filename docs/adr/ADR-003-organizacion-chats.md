@@ -68,6 +68,16 @@ Con dos mecanismos que sostienen el esquema:
   chat lee al empezar. Cada sesión cierra con el Informe de la Fase 7 de
   `WORKFLOW.md`, que se pega ahí.
 
+> **Enmienda del 2026-09-13 — `CHAT_ROLES.md` 1.1.** Este ADR preveía que el
+> responsable del proyecto pegara el informe en el HANDOFF. En la práctica el
+> paso manual entre tener la información y registrarla es donde la información
+> se pierde, así que el archivo se abrió: cada chat escribe su propia entrada
+> de bitácora y puede proponer tareas y deuda. Las secciones que fijan el rumbo
+> —decisiones (§2) y orden del plan (§4)— siguen siendo del Chat 1, que es lo
+> que impide que el plan lo termine ordenando el último chat que habló. El
+> reparto por sección está en `CHAT_ROLES.md` §6. La decisión de fondo de este
+> ADR —dividir por capa arquitectónica— no cambia.
+
 ---
 
 ## 4. Consecuencias

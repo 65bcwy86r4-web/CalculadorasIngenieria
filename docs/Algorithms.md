@@ -17,6 +17,15 @@ preocupación real, no solo teórica.
 
 ---
 
+**Sobre el procedimiento paso a paso.** Varias de estas implementaciones
+devuelven, además del resultado, un arreglo `steps` con el desarrollo para
+mostrar. La forma de ese arreglo está congelada por ADR-007 y documentada en
+`API.md`; acá se explica la matemática, no el formato. Donde una sección diga
+que el procedimiento todavía no está registrado, la función igual devuelve
+`steps: []`: la forma existe aunque el contenido no (ADR-007 §4).
+
+---
+
 # Parte I — Álgebra lineal numérica
 
 ## 1. Eliminación de Gauss (con pivoteo parcial)
@@ -145,7 +154,8 @@ y lo ofrece únicamente como recurso didáctico para ver la definición
 clásica "en acción", nunca como método de cálculo general.
 
 **Implementación:** `algebra/determinant.js::determinantByGauss` y
-`::determinantByCofactors`.
+`::determinantByCofactors`. Las dos devuelven `{ value, steps }`; el
+desarrollo de la expansión de Laplace es el Paso 2c-2 (ADR-007 §4).
 
 ---
 
@@ -203,7 +213,19 @@ una fila). La **adjunta** (o adjunta clásica) es `adj(A) = Cᵀ`.
   `inverse` (ambos `O(n³)`) en vez de `n²` determinantes adicionales.
   Mismo resultado matemático, mucho más rápido para matrices grandes.
 
-**Implementación:** `algebra/inverse.js::cofactorMatrix`, `::adjugate`.
+**Caso base `n = 1`:** el menor de una matriz `1×1` es la matriz vacía, y
+`det(∅) = 1` por convención (es el producto vacío, igual que `0! = 1`). El
+único cofactor vale entonces `(+1)·1 = 1`, así que `C = adj([[a]]) = [[1]]`
+para todo `a`. No es una convención arbitraria: es el único valor que hace
+que la identidad de Cramer siga valiendo en el caso base, porque
+`adj(A)/det(A) = [[1]]/a = [[1/a]]`, que es efectivamente `A⁻¹`. Se
+resuelve en `cofactorMatrix` y no en `Matrix.minor` porque una `Matrix` de
+`0×0` no es un objeto válido del motor.
+
+**Implementación:** `algebra/inverse.js::cofactorMatrix`, `::adjugate`. Las
+dos devuelven `{ matrix, steps }` y no una `Matrix` pelada (ADR-007 §3.4): una
+instancia de `Matrix` no puede llevar el procedimiento colgado sin ensuciar la
+clase. El desarrollo cofactor por cofactor es el Paso 2c-2.
 
 ---
 
@@ -239,7 +261,9 @@ hacia atrás), cada uno `O(n²)` en vez de `O(n³)`.
 mismo proceso); `O(n²)` para resolver un sistema adicional una vez
 factorizada.
 
-**Implementación:** `algebra/lu.js::luDecomposition`. Lanza
+**Implementación:** `algebra/lu.js::luDecomposition`. Cada paso lleva
+`snapshot` con el estado de `U` después de aplicarlo, que es el factor que se
+está construyendo (ADR-007 §3.2). Lanza
 `SingularMatrixError` si no se encuentra pivote no nulo en alguna
 columna (matriz singular).
 
@@ -323,10 +347,41 @@ si no es definida positiva.
 
 ---
 
-## 9. Autovalores — Algoritmo QR iterativo
+## 9. Autovalores — Despacho por tipo de matriz
 
-**Objetivo:** aproximar los autovalores `λ` de una matriz cuadrada `A`
+**Objetivo:** hallar los autovalores `λ` de una matriz cuadrada `A`
 (los escalares para los que existe `v ≠ 0` con `Av = λv`).
+
+**Por qué hay tres métodos y no uno.** No existe un algoritmo que sea a la
+vez el más general y el más exacto. `eigenvalues` elige según la forma de
+la matriz (ADR-004):
+
+| Caso | Método | Sección |
+|---|---|---|
+| `1×1` | trivial: el único elemento | — |
+| simétrica de cualquier orden | rotaciones de Jacobi | 9.2 |
+| `2×2` no simétrica | polinomio característico (forma cerrada) | 9.3 |
+| general | QR iterativo | 9.1 |
+
+El despacho no es una optimización: es lo que hace correcto el caso
+simétrico. La iteración QR sin desplazamiento **no converge** cuando dos
+autovalores tienen el mismo módulo y signo opuesto, que es exactamente el
+espectro de un tensor de corte puro (`±τ`, y `0`). Mientras ese fue el
+único camino, pedir autovalores de `[[0,τ],[τ,0]]` devolvía `[0, 0]` y
+`vonMisesStress` informaba "material sin solicitación" para un eje a
+torsión.
+
+**Una entrada que elige, y cada método por su nombre.** Cada uno de los
+tres algoritmos se expone además por separado —`eigenvaluesQR`,
+`jacobiEigenDecomposition`, `eigenvalues2x2`— porque poder pedir uno en
+particular y verlo correr es contenido didáctico, no solo mecánica interna
+(ADR-005). La consecuencia es que `eigenvaluesQR` **sí** exhibe la
+limitación de arriba: es el algoritmo QR, y eso es lo que el algoritmo QR
+hace. Quien quiere los autovalores sin elegir método usa `eigenvalues`.
+
+---
+
+### 9.1 QR iterativo (caso general)
 
 **Fundamento teórico:** el algoritmo QR itera:
 
@@ -351,24 +406,145 @@ El motor usa una cantidad fija de iteraciones (500 por defecto,
 de producción como LAPACK, que usan el shift de Wilkinson para acelerar
 drásticamente la convergencia — una mejora pendiente, ver `Roadmap.md`).
 
-**Autovalores complejos:** si `A` tiene un par de autovalores complejos
-conjugados, el algoritmo sin shifts no los triangulariza del todo: deja
-un bloque `2×2` no nulo bajo la diagonal en esa posición. El motor
-detecta esto (`hasComplexHint`) revisando si queda algún elemento
-significativo en la subdiagonal al terminar las iteraciones, y lo
-informa en vez de reportar un resultado incorrecto como si fuera válido.
+**Cuándo no converge, y qué informa:** el método falla en dos situaciones,
+y las dos se manifiestan igual —un bloque `2×2` no nulo bajo la diagonal—:
+
+1. **Autovalores complejos conjugados.** No hay forma triangular real a la
+   que converger.
+2. **Autovalores reales de igual módulo** (`±λ`). La razón `|λᵢ₊₁/λᵢ|`
+   vale 1 y la iteración no separa nunca los dos subespacios.
+
+`hasComplexHint` se pone en `true` revisando si queda algún elemento
+significativo en la subdiagonal al terminar, y cubre los dos casos: el
+nombre dice "complejos" porque es la causa más frecuente, pero lo que
+afirma en rigor es que *la iteración no triangularizó* y que la diagonal
+no son los autovalores. Es preferible a reportar un resultado incorrecto
+como si fuera válido, y es la razón por la que `eigenvalues` no manda las
+matrices simétricas por acá.
 
 **Complejidad:** `O(n³)` por iteración (una factorización QR completa),
 así que `O(k·n³)` en total para `k` iteraciones.
 
-**Implementación:** `algebra/eigen.js::eigenvaluesQR`.
+**Implementación:** `algebra/eigen-qr.js::eigenvaluesQR`. Es también el camino
+general de `eigenvalues`, para matrices no simétricas de orden mayor que 2.
+
+---
+
+### 9.2 Rotaciones de Jacobi (matrices simétricas)
+
+**Objetivo:** autovalores **y** autovectores de una matriz simétrica real,
+sin las limitaciones de convergencia del QR sin desplazamiento.
+
+**Fundamento teórico:** por el teorema espectral, toda matriz simétrica
+real es diagonalizable por una matriz ortogonal: existe `Q` ortogonal tal
+que `QᵀAQ = D` es diagonal. El método de Jacobi construye esa `Q` como
+producto de rotaciones planas elementales, cada una de las cuales anula un
+par simétrico de elementos fuera de la diagonal.
+
+En cada paso se elige el elemento `a_pq` de mayor valor absoluto fuera de
+la diagonal (estrategia clásica, no barrido cíclico) y se aplica la
+rotación en el plano `(p, q)` con ángulo
+
+```
+θ = ½ · atan2(2·a_pq , a_qq − a_pp)
+```
+
+que por construcción hace `a_pq = 0`. Como cada rotación es ortogonal, la
+transformación `A ← RᵀAR` es de semejanza: los autovalores se preservan
+exactamente. Las rotaciones sucesivas pueden reintroducir un valor no nulo
+donde antes había un cero, pero la **norma de Frobenius de la parte fuera
+de la diagonal decrece estrictamente** en cada paso, así que el proceso
+converge siempre. Al terminar, la diagonal son los autovalores y las
+columnas del producto acumulado de rotaciones son los autovectores, ya
+ortonormales por construcción.
+
+**Por qué acá sí y en QR no:** Jacobi no depende de que los autovalores
+tengan módulos distintos. Anula elementos concretos, no separa subespacios
+por dominancia, así que `±λ` y los autovalores repetidos no lo afectan.
+
+**Complejidad:** `O(n²)` por rotación (actualiza dos filas y dos columnas,
+más la búsqueda del máximo) y típicamente `O(n²)` rotaciones para
+converger, es decir `O(n⁴)` en el peor caso práctico. Más caro que QR por
+iteración en matrices grandes, y preferible igual: en el rango de tamaños
+de esta plataforma la diferencia es imperceptible y la corrección no es
+negociable.
+
+**Referencia:** Golub & Van Loan, *Matrix Computations*, 4ª ed., §8.5.
+
+**Implementación:** `algebra/eigen-jacobi.js::jacobiEigenDecomposition`. Lanza
+`MathError` (`NOT_SYMMETRIC`) si la matriz no es simétrica: no es un método
+de propósito general y devolver algo igual sería peor que no devolver nada.
+
+---
+
+### 9.3 Forma cerrada 2×2
+
+**Objetivo:** resolver exacto el caso que un estudiante verifica a mano.
+
+**Derivación:** para `A = [[a, b], [c, d]]`, el polinomio característico
+`det(A − λI) = 0` se expande a
+
+```
+λ² − (a + d)·λ + (ad − bc) = 0
+λ² − tr(A)·λ + det(A) = 0
+```
+
+de donde, por la fórmula cuadrática,
+
+```
+λ = ( tr(A) ± √(tr(A)² − 4·det(A)) ) / 2
+```
+
+El discriminante `Δ = tr² − 4·det` decide la naturaleza de las raíces:
+
+| Δ | Raíces |
+|---|---|
+| `> 0` | dos autovalores reales distintos |
+| `= 0` | un autovalor real doble |
+| `< 0` | par complejo conjugado `tr/2 ± i·√(−Δ)/2` |
+
+**Autovalores complejos:** el motor no representa números complejos
+todavía (deuda D5 del `HANDOFF.md`). En vez de devolver reales inventados,
+`eigenvalues2x2` devuelve `values: []` e informa el par por partes en
+`realPart` e `imaginaryPart`, y `eigenvaluesQR` marca `hasComplexHint`. La
+diferencia con el camino general es que acá la detección es **exacta** —
+sale del signo del discriminante, no de mirar si quedó residuo en la
+subdiagonal después de 500 iteraciones.
+
+**Complejidad:** `O(1)`. Sin iteración y sin error de truncamiento.
+
+**Implementación:** `algebra/eigen-2x2.js::eigenvalues2x2`.
+
+---
+
+### 9.4 Qué función llamar
+
+| Función | Ejecuta | Archivo | Cuándo |
+|---|---|---|---|
+| `eigenvalues` | el método que corresponda | `algebra/eigen.js` | por defecto: quiero los autovalores |
+| `eigenvaluesQR` | 9.1, siempre | `algebra/eigen-qr.js` | quiero ver el QR corriendo |
+| `jacobiEigenDecomposition` | 9.2, solo simétricas | `algebra/eigen-jacobi.js` | quiero Jacobi, o necesito los autovectores |
+| `eigenvalues2x2` | 9.3, solo 2×2 | `algebra/eigen-2x2.js` | quiero la forma cerrada, o distinguir el par complejo |
+
+`eigenvalues` informa en `method` cuál eligió, para que una calculadora
+pueda explicar el procedimiento que efectivamente se ejecutó, y devuelve en
+`steps` los del método que corrió, no unos propios.
+
+**Un archivo por método.** La división es de ADR-007 §3.5 y responde a dos
+cosas a la vez: `eigen.js` había llegado a 480 líneas contra el máximo de 500
+de `AI_RULES.md` §10 (deuda D14), y cada uno de los tres métodos es una
+responsabilidad completa —su propia teoría, sus propias limitaciones, su
+propio margen de mejora— que `ENGINEERING_GUIDE.md` §3 pide separar. En
+particular, deja lugar para D13 (desplazamientos de Wilkinson) sin volver a
+dividir nada. Los nombres públicos no cambiaron: se siguen importando todos
+desde `shared/math/index.js`.
 
 ---
 
 ## 10. Autovectores — Núcleo de (A − λI)
 
-**Objetivo:** dado un autovalor `λ` (ya conocido, típicamente por la
-sección 9), hallar un vector `v ≠ 0` con `Av = λv`.
+**Objetivo:** dado un autovalor `λ` (ya conocido, típicamente por
+`eigenvalues`, sección 9), hallar un vector `v ≠ 0` con `Av = λv`.
 
 **Derivación:** `Av = λv ⟺ Av − λv = 0 ⟺ (A − λI)v = 0`. Es decir, `v`
 es cualquier vector no nulo del **núcleo** (espacio nulo) de `A − λI`

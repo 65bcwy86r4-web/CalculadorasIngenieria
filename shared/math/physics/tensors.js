@@ -12,13 +12,15 @@
  * tensorial: descomposición simétrica/antisimétrica, doble contracción,
  * valores y direcciones principales (autovalores/autovectores del propio
  * tensor) y la tensión de Von Mises. Los valores/direcciones principales
- * reutilizan algebra/eigen.js en vez de reimplementar un solver.
+ * reutilizan algebra/eigen.js en vez de reimplementar un solver, y lo hacen
+ * a través de `eigenvalues`, la entrada que despacha, no de un algoritmo en
+ * particular (ADR-005).
  * ---------------------------------------------------------------------------
  */
 
-import { eigenvaluesQR, eigenvectors } from '../algebra/eigen.js';
+import { eigenvalues, eigenvectors } from '../algebra/eigen.js';
 import { assertSquareMatrix } from '../validation/matrix.js';
-import { DimensionError } from '../errors/DimensionError.js';
+import { DimensionError } from '../errors/dimension-error.js';
 
 /**
  * Parte simétrica de un tensor: Tsym = (T + Tᵀ) / 2.
@@ -79,17 +81,20 @@ export function meanValue(tensor) {
 }
 
 /**
- * Valores principales de un tensor (autovalores). Para tensores físicos
- * simétricos (tensión, inercia), son siempre reales, lo que garantiza la
- * convergencia del algoritmo QR usado internamente.
+ * Valores principales de un tensor (autovalores). Usa `eigenvalues`, que
+ * despacha por tipo de matriz: los tensores físicos (tensión, inercia) son
+ * simétricos y van por Jacobi, que converge siempre — incluido el corte
+ * puro, de autovalores ±τ, donde el QR sin desplazamiento no converge.
  * @param {Matrix} tensor
  * @returns {number[]} valores principales, de mayor a menor
  * @throws {DimensionError} si no es cuadrado
  * @example
  * principalValues(new Matrix([[2,1],[1,2]])); // [3, 1]
+ * @example
+ * principalValues(new Matrix([[0,100,0],[100,0,0],[0,0,0]])); // [100, 0, -100]
  */
 export function principalValues(tensor) {
-  return eigenvaluesQR(tensor).values;
+  return eigenvalues(tensor).values;
 }
 
 /**
@@ -103,7 +108,8 @@ export function principalValues(tensor) {
  */
 export function principalDirections(tensor) {
   const values = principalValues(tensor);
-  return eigenvectors(tensor, values).map((p) => ({ value: p.lambda, direction: p.vector }));
+  const { vectors } = eigenvectors(tensor, values);
+  return vectors.map((p) => ({ value: p.lambda, direction: p.vector }));
 }
 
 /**

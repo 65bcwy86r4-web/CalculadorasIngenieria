@@ -9,7 +9,7 @@
  */
 
 import { assertFunction, assertFiniteNumber, assertPositive, assertInteger } from '../validation/numbers.js';
-import { MathError } from '../errors/MathError.js';
+import { MathError } from '../errors/math-error.js';
 import { sign } from '../utils/helpers.js';
 import { DEFAULT_TOLERANCE, DEFAULT_MAX_ITERATIONS } from '../utils/constants.js';
 

@@ -1,5 +1,5 @@
 /**
- * DimensionError.js
+ * dimension-error.js
  * ---------------------------------------------------------------------------
  * Error para toda incompatibilidad de "forma": matrices que no se pueden
  * sumar, multiplicar o comparar por tener filas/columnas distintas,
@@ -12,7 +12,7 @@
  * ---------------------------------------------------------------------------
  */
 
-import { MathError } from './MathError.js';
+import { MathError } from './math-error.js';
 
 export class DimensionError extends MathError {
   /**
@@ -20,7 +20,7 @@ export class DimensionError extends MathError {
    * @param {Object} [context={}] - Ej: { expected: '3x3', received: '2x4' }.
    *
    * @example
-   * import { DimensionError } from '../errors/DimensionError.js';
+   * import { DimensionError } from '../errors/dimension-error.js';
    * throw new DimensionError(
    *   'No se pueden sumar matrices de tamaños distintos.',
    *   { expected: '3x3', received: '2x4' }

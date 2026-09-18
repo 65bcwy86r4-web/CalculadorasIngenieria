@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CalculadorasIngenieria</title>
   <!--
-    PROVISORIO — Versión 3a.
-    Este archivo existe para verificar que el motor carga correctamente sobre
-    HTTP (ver docs/adr/ADR-002-ejecucion-esm.md). El dashboard real lo
-    construye el Chat 3, con los estilos del Chat 4 en css/.
+    PROVISORIO — sigue siéndolo después de la Versión 3a.
+    Este archivo verifica que el motor carga sobre HTTP (ver
+    docs/adr/ADR-002-ejecucion-esm.md) y, desde el Paso 3, enlaza la
+    calculadora de álgebra. El dashboard real es el Paso 4 (Versión 3b), con
+    los estilos del Chat 4 en css/.
     No invertir trabajo de diseño acá: se va a reemplazar por completo.
   -->
   <style>
@@ -33,11 +34,17 @@
 
   <div id="estado">Verificando el motor matemático…</div>
 
+  <h2>Calculadoras</h2>
+  <ul>
+    <li><a href="./modules/algebra/index.html">Álgebra lineal</a> — 27 operaciones sobre el motor compartido</li>
+  </ul>
+
   <h2>Estado del proyecto</h2>
   <ul>
     <li><strong>Motor</strong> <code>shared/math/</code> — completo y documentado</li>
-    <li><strong>Pruebas</strong> <code>tests/</code> — pendiente (Paso 1)</li>
-    <li><strong>Calculadoras</strong> <code>modules/</code> — pendiente (Versión 3a)</li>
+    <li><strong>Pruebas</strong> <code>tests/</code> — 313 pruebas, todas en verde (<code>node tests/run.js</code>)</li>
+    <li><strong>Calculadoras</strong> <code>modules/</code> — álgebra lista (Versión 3a); el resto, pendiente</li>
+    <li><strong>Estilos</strong> <code>css/</code> — pendiente (Chat 4)</li>
   </ul>
 
   <p>

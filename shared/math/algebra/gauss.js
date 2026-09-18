@@ -13,7 +13,7 @@
  */
 
 import { Matrix } from './matrix.js';
-import { DimensionError } from '../errors/DimensionError.js';
+import { DimensionError } from '../errors/dimension-error.js';
 import { DEFAULT_TOLERANCE } from '../utils/constants.js';
 
 /**

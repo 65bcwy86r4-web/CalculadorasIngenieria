@@ -16,7 +16,7 @@
 
 import { Matrix } from '../algebra/matrix.js';
 import { solveSystem } from '../algebra/gauss.js';
-import { InterpolationError } from '../errors/InterpolationError.js';
+import { InterpolationError } from '../errors/interpolation-error.js';
 import { assertFiniteNumber } from '../validation/numbers.js';
 
 /**

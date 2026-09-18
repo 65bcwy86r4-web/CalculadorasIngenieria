@@ -1,8 +1,12 @@
 # tests/
 
-Pruebas del motor matemático. **Paso 1 del plan — todavía vacío.**
+Pruebas del motor matemático. **Paso 1 del plan — implementado el 2026-09-13.**
 
 Chat responsable: 5 (QA y Verificación), según `docs/CHAT_ROLES.md`.
+
+Estado: **281 pruebas en 16 archivos, todas pasan.** Cinco hallazgos abiertos
+contra el motor, fijados en `math/known-defects.test.js` y reportados al
+Chat 2 (ver la bitácora de `docs/HANDOFF.md`, entrada del 2026-09-13).
 
 ---
 
@@ -23,8 +27,12 @@ Node en modo ES Modules, sin dependencias externas ni framework de testing
 §3), así que corre en Node sin ninguna adaptación.
 
 ```bash
-node tests/run.js
+node tests/run.js              # toda la suite
+node tests/run.js algebra      # solo los archivos cuyo nombre contenga 'algebra'
 ```
+
+Termina con código de salida 1 si algo falla, así que sirve como compuerta
+antes de aceptar una PR (`CODING_STANDARDS.md` §17).
 
 ---
 
@@ -62,22 +70,80 @@ Más una quinta categoría propia de este motor:
   calculadora. Si algo hace falta probar y no está exportado, es implementación
   interna y no se prueba directamente.
 - Una prueba que falla no se "ajusta" cambiando la tolerancia hasta que pase.
-  Se investiga.
+  Se investiga. Si la investigación concluye que el motor está mal, el hallazgo
+  va a `math/known-defects.test.js` y se reporta; no se arregla desde acá.
+- Toda tolerancia distinta de la de por defecto lleva al lado el motivo por el
+  que es distinta.
 
 ---
 
-## Estructura sugerida
+## Estructura
 
 ```
 tests/
-├── run.js              Ejecutor: recorre math/, corre todo, informa
-├── assert.js           Helpers mínimos (assertClose, assertThrows, assertMatrixClose)
+├── run.js              Ejecutor: descubre math/*.test.js, corre todo, informa
+├── assert.js           assertClose, assertThrows, assertMatrixClose y afines
 └── math/
-    ├── algebra.test.js
-    ├── interpolation.test.js
-    ├── numerical.test.js
-    ├── physics.test.js
-    ├── units.test.js
-    ├── formatter.test.js
-    └── validation.test.js
+    ├── api-surface.test.js            Contrato de la API pública contra docs/API.md
+    ├── errors.test.js                 Jerarquía de excepciones, code y context
+    ├── validation.test.js             Familias isX y assertX
+    ├── formatter.test.js              Precisión y formato de salida
+    ├── algebra-matrix.test.js         Clase Matrix
+    ├── algebra-gauss.test.js          Escalonamiento, rango y sistemas
+    ├── algebra-determinant.test.js    Determinante, inversa, adjunta, condición
+    ├── algebra-decompositions.test.js LU, QR, Cholesky
+    ├── algebra-eigen.test.js          Autovalores, autovectores, diagonalización
+    ├── interpolation.test.js          Lineal, por tramos, Lagrange, spline
+    ├── numerical.test.js              Newton, bisección, secante, trapecio, Simpson
+    ├── physics.test.js                vectors.* y tensors.*
+    ├── units.test.js                  Seis categorías, dispatcher y catálogo
+    ├── helpers.test.js                Utilidades genéricas
+    ├── cross-checks.test.js           Verificación cruzada entre métodos
+    └── known-defects.test.js          Defectos del motor, fijados y documentados
 ```
+
+El módulo de álgebra está partido en cinco archivos y no en uno solo, como
+sugería la estructura original: junto habría superado holgadamente el límite de
+500 líneas de `AI_RULES.md` §10, y separado el informe de fallas dice en qué
+algoritmo está el problema.
+
+---
+
+## Cómo agregar una prueba
+
+Cada archivo exporta un arreglo `tests`; el ejecutor lo importa y corre cada
+entrada. No hay registro global ni `describe/it`: un archivo de prueba es un
+módulo ES común, importable por separado.
+
+```js
+import { loQueSePrueba } from '../../shared/math/index.js';
+import { assertClose } from '../assert.js';
+
+export const tests = [
+  {
+    name: 'descripción de lo que se verifica',
+    fn: () => {
+      assertClose(loQueSePrueba(2), 4, 'mensaje si falla');
+    },
+  },
+];
+```
+
+Un archivo nuevo en `math/` con el sufijo `.test.js` se descubre solo.
+
+---
+
+## known-defects.test.js
+
+Es la excepción a la regla. Esas pruebas fijan lo que el motor hace **hoy**, que
+en esos casos es incorrecto, y dejan escrito al lado cuál sería el resultado
+correcto, cuál es la causa y a qué archivo pertenece el arreglo.
+
+Existe para que `node tests/run.js` siga siendo una compuerta útil: una suite
+permanentemente en rojo deja de informar, porque a los dos días nadie distingue
+"las de siempre" de una regresión nueva.
+
+Cuando el Chat 2 corrija uno de esos defectos, la prueba correspondiente va a
+fallar. **Eso no es una regresión: es la señal de que el hallazgo se cerró.** Se
+borra de ese archivo y la verificación correcta se muda al archivo que le
+corresponde, que el comentario de cada prueba indica.

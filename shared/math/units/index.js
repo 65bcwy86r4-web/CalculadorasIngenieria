@@ -28,8 +28,8 @@ import { convert as temperatureConvert, units as temperatureUnits } from './temp
 import { convert as speedConvert, units as speedUnits } from './speed.js';
 import { convert as massConvert, units as massUnits } from './mass.js';
 import { convert as energyConvert, units as energyUnits } from './energy.js';
-import { MathError } from '../errors/MathError.js';
-import { DimensionError } from '../errors/DimensionError.js';
+import { MathError } from '../errors/math-error.js';
+import { DimensionError } from '../errors/dimension-error.js';
 import { assertFiniteNumber } from '../validation/numbers.js';
 
 /**

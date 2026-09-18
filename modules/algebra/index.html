@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Álgebra Lineal — CalculadorasIngenieria</title>
+
+  <!--
+    ===========================================================================
+    CONTRATO VISUAL PARA EL CHAT 4 (Diseño y UX)
+    ===========================================================================
+    Este archivo sale a propósito SIN estilos: css/ es zona del Chat 4
+    (CHAT_ROLES.md §4) y el Chat 3 no la toca. La hoja de estilos se enlaza
+    abajo y todavía no existe; hasta que exista, la calculadora funciona y se
+    ve sin formato.
+
+    Estructura y clases que genera el JavaScript, para que el Chat 4 pueda
+    escribir el CSS sin leer el código:
+
+    Menú lateral (lo construye app.js desde el catálogo)
+      nav.sidebar > .op-group > h3 + button.op-btn[data-op]
+      La operación elegida lleva además .is-active
+
+    Entradas
+      .matrix-card                tarjeta de una matriz; .is-hidden cuando no aplica
+      .matrix-grid                grilla; usa la variable CSS --grid-cols
+      input.matrix-input          celda; .is-invalid si el valor no es un número
+      .extra-controls             escalar k y exponente n; .is-hidden cuando no aplican
+
+    Panel de resultado
+      .block                      un bloque de resultado
+      .block-label                su título
+      .matrix-table / .matrix-cell
+      .vector-list                con modificador --row o --column; .vector-item
+      .pairs-list                 <dl>; .pairs-name, .pairs-value
+      .flags-list > .flag         con .flag--on / .flag--off; .flag-mark, .flag-name
+      .scalar-value               un número solo, grande
+      .block-text                 texto de conclusión
+      .note                       aviso; .note--warning y .note--error
+      .panel-empty                mensaje de panel vacío
+
+    Panel de procedimiento
+      ol.steps-list > li.step
+      .step-badge                 tipo del paso; lleva además .step-badge--<type>
+                                  con type ∈ info, swap, scale, elim, expand,
+                                  compute, normalize, rotate, iterate, final
+                                  (vocabulario cerrado de ADR-007 §3.3)
+      .step-number, .step-text
+      table.step-snapshot         estado de la matriz después del paso; es
+                                  OPCIONAL: la mayoría de los pasos no lo trae y
+                                  el diseño no puede depender de que esté
+
+    Historial y avisos
+      .history-drawer             con .is-open; .history-item, .history-meta
+      .overlay                    con .is-visible
+      .toast                      con .is-visible y .toast--info / .toast--error
+
+    Impresión
+      #printArea.print-only       solo visible al imprimir (export a PDF)
+      Al imprimir conviene ocultar barra, menú, historial y overlay.
+    ===========================================================================
+  -->
+  <link rel="stylesheet" href="../../css/algebra.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <button class="icon-btn" id="btnToggleSidebar" type="button" aria-label="Mostrar u ocultar el menú" title="Menú (Ctrl+B)">☰</button>
+
+    <div class="brand">
+      <span class="brand-mark">Σ</span>
+      <span class="brand-text">
+        <span class="brand-name">Álgebra Lineal</span>
+        <span class="brand-sub">CalculadorasIngenieria</span>
+      </span>
+    </div>
+
+    <div class="topbar-spacer"></div>
+
+    <div class="matrix-size-control">
+      <label for="matSize">Dimensión</label>
+      <select id="matSize"></select>
+      <button class="btn btn-accent" id="btnGenerate" type="button">Generar matriz</button>
+    </div>
+
+    <button class="icon-btn" id="btnHistory" type="button" title="Historial (Ctrl+H)">Historial</button>
+  </header>
+
+  <div class="app-body">
+
+    <nav class="sidebar" id="sidebar" aria-label="Operaciones disponibles">
+      <div class="sidebar-scroll" id="opMenu"></div>
+    </nav>
+
+    <main class="main-area">
+
+      <section class="matrices-zone">
+        <div class="matrix-card" id="cardA">
+          <div class="matrix-card-head">
+            <span>Matriz A <span class="dim-badge" id="dimBadgeA"></span></span>
+            <button class="link-btn" id="btnPasteA" type="button" title="Pegar desde Excel, Sheets o MATLAB">Pegar</button>
+          </div>
+          <div class="matrix-grid" id="gridA"></div>
+        </div>
+
+        <div class="matrix-card is-hidden" id="cardB">
+          <div class="matrix-card-head">
+            <span>Matriz B <span class="dim-badge" id="dimBadgeB"></span></span>
+            <button class="link-btn" id="btnPasteB" type="button" title="Pegar desde Excel, Sheets o MATLAB">Pegar</button>
+          </div>
+          <div class="matrix-grid" id="gridB"></div>
+        </div>
+
+        <div class="matrix-card is-hidden" id="cardVectorB">
+          <div class="matrix-card-head"><span>Vector b</span></div>
+          <div class="matrix-grid" id="gridVectorB"></div>
+        </div>
+
+        <div class="extra-controls is-hidden" id="scalarControl">
+          <label for="scalarInput">Escalar k</label>
+          <input type="text" inputmode="decimal" id="scalarInput" value="2" />
+        </div>
+
+        <div class="extra-controls is-hidden" id="powerControl">
+          <label for="powerInput">Exponente n</label>
+          <input type="number" id="powerInput" value="2" min="0" step="1" />
+        </div>
+      </section>
+
+      <div class="run-bar">
+        <span class="run-bar-label" id="currentOpLabel">Elegí una operación del menú lateral</span>
+        <button class="btn btn-accent btn-run" id="btnRun" type="button" disabled>Calcular</button>
+      </div>
+
+      <section class="results-zone">
+        <div class="panel" id="resultPanel">
+          <div class="panel-head">
+            <h3>Resultado</h3>
+            <div class="export-buttons">
+              <button class="chip-btn" id="btnExportTxt" type="button" disabled>TXT</button>
+              <button class="chip-btn" id="btnExportCsv" type="button" disabled>CSV</button>
+              <button class="chip-btn" id="btnExportPdf" type="button" disabled>PDF</button>
+            </div>
+          </div>
+          <div class="panel-body" id="resultBody"></div>
+        </div>
+
+        <div class="panel" id="stepsPanel">
+          <div class="panel-head"><h3>Procedimiento paso a paso</h3></div>
+          <div class="panel-body steps-body" id="stepsBody"></div>
+        </div>
+      </section>
+
+      <section class="panel shortcuts-panel">
+        <div class="panel-head"><h3>Atajos de teclado</h3></div>
+        <dl class="pairs-list" id="shortcutsList"></dl>
+      </section>
+
+    </main>
+  </div>
+
+  <aside class="history-drawer" id="historyDrawer" aria-label="Historial de cálculos">
+    <div class="panel-head">
+      <h3>Historial de cálculos</h3>
+      <button class="link-btn" id="btnClearHistory" type="button">Vaciar</button>
+      <button class="icon-btn" id="btnCloseHistory" type="button" aria-label="Cerrar el historial">✕</button>
+    </div>
+    <div class="history-list" id="historyList"></div>
+  </aside>
+
+  <div class="overlay" id="overlay"></div>
+
+  <div id="printArea" class="print-only"></div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!--
+    ES Modules servidos por HTTP (ADR-002). Abrir este archivo con doble clic
+    no funciona: hay que servir la carpeta del proyecto, por ejemplo con
+    `python -m http.server 8000`, y entrar por http://localhost:8000.
+  -->
+  <script type="module" src="./app.js"></script>
+
+</body>
+</html>

@@ -8,14 +8,18 @@
 
 import { Matrix } from './matrix.js';
 import { assertSquareMatrix } from '../validation/matrix.js';
-import { DimensionError } from '../errors/DimensionError.js';
-import { MathError } from '../errors/MathError.js';
+import { DimensionError } from '../errors/dimension-error.js';
+import { MathError } from '../errors/math-error.js';
 import { DEFAULT_TOLERANCE } from '../utils/constants.js';
 
 /**
+ * `steps` viene vacío: el desarrollo elemento a elemento es el Paso 2c-2
+ * (ADR-007 §4). La clave existe desde ya para que la interfaz pueda
+ * escribirse contra el contrato definitivo.
+ *
  * @param {Matrix} matrix - debe ser simétrica y definida positiva
  * @param {number} [tolerance=DEFAULT_TOLERANCE]
- * @returns {{ L: Matrix, Lt: Matrix }}
+ * @returns {{ L: Matrix, Lt: Matrix, steps: Array<Object> }}
  * @throws {DimensionError} si no es cuadrada o no es simétrica
  * @throws {MathError} code 'NOT_POSITIVE_DEFINITE' si no es definida positiva
  * @example
@@ -45,5 +49,5 @@ export function choleskyDecomposition(matrix, tolerance = DEFAULT_TOLERANCE) {
       }
     }
   }
-  return { L, Lt: L.transpose() };
+  return { L, Lt: L.transpose(), steps: [] };
 }

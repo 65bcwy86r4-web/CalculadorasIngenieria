@@ -8,7 +8,7 @@
  * ---------------------------------------------------------------------------
  */
 
-import { InterpolationError } from '../errors/InterpolationError.js';
+import { InterpolationError } from '../errors/interpolation-error.js';
 import { assertFiniteNumber } from '../validation/numbers.js';
 
 /**

@@ -87,15 +87,22 @@ entrega. Prerrequisito: la suite de pruebas del Paso 1.
 
 ### Prioridad alta
 
+> **Los dos ítems de autovalores se adelantaron al Paso 1b por
+> [ADR-004](ADR-004-correccion-autovalores.md)**, porque son la corrección de
+> los hallazgos H-03 y H-04 que encontró la suite de pruebas. No se hacen acá.
+
 - [ ] **`jacobiEigenDecomposition`** (`legacy/motor-v1/algebra/eigen.js`).
       Método de Jacobi para matrices simétricas. Notablemente más estable que
       el QR iterativo, y las matrices simétricas son precisamente el caso de
       `physics/tensors.js` (tensiones principales, Von Mises) y del futuro
       análisis estructural de la Versión 6.
+      → **Movido al Paso 1b (ADR-004).**
 
 - [ ] **`eigenvalues2x2`** — solución analítica exacta del caso 2×2, con
       detección de autovalores complejos conjugados. El QR iterativo no los
       resuelve y hoy el motor no los detecta: los devuelve mal en silencio.
+      Confirmado por la suite como H-03.
+      → **Movido al Paso 1b (ADR-004).**
 
 - [ ] **`solveQRLeastSquares`** — resolución por mínimos cuadrados de sistemas
       sobredeterminados. Capacidad genuina y ausente por completo en el motor

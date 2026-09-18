@@ -14,7 +14,7 @@
 
 import { assertVectorData, assertSameLength } from '../validation/matrix.js';
 import { assertFiniteNumber } from '../validation/numbers.js';
-import { DimensionError } from '../errors/DimensionError.js';
+import { DimensionError } from '../errors/dimension-error.js';
 
 /**
  * @param {number[]} a

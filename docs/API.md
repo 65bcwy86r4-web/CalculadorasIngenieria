@@ -21,6 +21,49 @@ Convenciones de esta referencia:
 
 ---
 
+## El contrato de `steps`
+
+Muchas funciones devuelven, además del resultado, el **procedimiento paso a paso** pensado para que una calculadora lo muestre. La forma está congelada por [ADR-007](adr/ADR-007-contrato-de-steps.md) y vale para todo `shared/math/`, no solo para el álgebra.
+
+**Regla general.** Toda función alcanzada por el contrato devuelve un **objeto plano** con una clave `steps`, que es **siempre un arreglo** — vacío si esa función todavía no registra pasos, nunca `undefined`. Ninguna devuelve un número pelado, un arreglo pelado ni una `Matrix` como retorno completo.
+
+**Forma del paso:**
+
+```js
+{
+  type: string,           // obligatorio, del vocabulario cerrado de abajo
+  text: string,           // obligatorio, en español, listo para mostrar
+  snapshot?: number[][],  // opcional: estado después del paso
+  detail?: object         // opcional: datos estructurados para resaltar
+}
+```
+
+> **La regla que gobierna todo lo demás:** la interfaz tiene que poder renderizar cualquier procedimiento usando **solo `type` y `text`**. `snapshot` y `detail` son mejoras progresivas, nunca requisitos. Un renderizador que necesite `snapshot` para no romperse está mal escrito.
+
+`snapshot` es un arreglo bidimensional de números comunes, no una `Matrix`, y representa el estado **después** de aplicar el paso; en las factorizaciones, el factor que se está construyendo. `detail` no tiene forma fija y ninguna calculadora debe depender de él.
+
+**Vocabulario cerrado de `type`.** Un `type` fuera de esta lista es un error de contrato; ampliarla es una decisión de arquitectura, no de una función.
+
+| Procedimiento | | Cierre | |
+|---|---|---|---|
+| `info` | nota que no modifica nada | `final` | resultado final |
+| `swap` | intercambio de dos filas | `unique` | el sistema tiene solución única |
+| `scale` | fila por un escalar | `infinite` | infinitas soluciones |
+| `elim` | combinación lineal de filas | `incompatible` | sistema incompatible |
+| `expand` | expansión por cofactores | | |
+| `compute` | cálculo de un elemento o columna | | |
+| `normalize` | normalización de un vector | | |
+| `rotate` | rotación de Jacobi | | |
+| `iterate` | una iteración de un método iterativo | | |
+
+**Estado actual.** Nueve funciones devuelven `steps: []` a propósito: la forma está congelada y el contenido se escribe después (ADR-007 §4). Un `steps: []` se renderiza como "esta operación todavía no muestra el desarrollo", que es honesto y no obliga a esperar. Las que ya traen procedimiento son `rowEchelon`, `reducedRowEchelon`, `rank`, `solveSystem`, `determinantByGauss`, `inverse`, `luDecomposition` y `conditionNumber`.
+
+Algunas funciones **propagan** los pasos de lo que calculan internamente en vez de tener unos propios: `conditionNumber` devuelve los de la inversión, `adjugate` los de la matriz de cofactores (o los de la inversa, si usó `det(A)·A⁻¹`), `eigenvalues` los del método que despachó, y `diagonalize` encadena los de autovalores y autovectores. Es lo correcto: lo que hay que mostrar es el procedimiento que efectivamente corrió.
+
+`tests/math/steps-contract.test.js` verifica todo esto de forma genérica, así que el contrato falla solo cuando alguien se desvía.
+
+---
+
 ## Álgebra (`algebra/`)
 
 ### `class Matrix`
@@ -124,9 +167,9 @@ Determinante vía triangulación de Gauss — O(n³), método recomendado para c
 
 ### `determinantByCofactors(matrix)`
 Expansión de Laplace — O(n!), solo con fines teóricos/didácticos.
-**Retorna:** `number`
+**Retorna:** `{ value: number, steps: Array }` — `steps` vacío por ahora
 **Excepciones:** `DimensionError` si no es cuadrada; `MathError` (`TOO_LARGE_FOR_COFACTORS`) si `n > 7`.
-**Ejemplo:** `determinantByCofactors(new Matrix([[1,2],[3,4]])) // -2`
+**Ejemplo:** `determinantByCofactors(new Matrix([[1,2],[3,4]])).value // -2`
 
 ### `inverse(matrix, tolerance = 1e-10)`
 Inversa vía Gauss-Jordan sobre `[A | I]`.
@@ -135,57 +178,110 @@ Inversa vía Gauss-Jordan sobre `[A | I]`.
 **Ejemplo:** `inverse(new Matrix([[4,7],[2,6]])).inverse`
 
 ### `cofactorMatrix(matrix)`
-**Retorna:** `Matrix` — `Cᵢⱼ = (-1)^(i+j) · det(menor_ij)`
+`Cᵢⱼ = (-1)^(i+j) · det(menor_ij)`. Caso base: la matriz de cofactores de una 1×1 es `[[1]]`, cualquiera sea su elemento.
+**Retorna:** `{ matrix: Matrix, steps: Array }` — `steps` vacío por ahora
 **Excepciones:** `DimensionError` si no es cuadrada.
-**Ejemplo:** `cofactorMatrix(new Matrix([[1,2],[3,4]])).toArray() // [[4,-3],[-2,1]]`
+**Ejemplo:** `cofactorMatrix(new Matrix([[1,2],[3,4]])).matrix.toArray() // [[4,-3],[-2,1]]`
+**Ejemplo:** `cofactorMatrix(new Matrix([[7]])).matrix.toArray() // [[1]]`
 
 ### `adjugate(matrix)`
 Transpuesta de la matriz de cofactores. Para n > 6 usa `det(A)·A⁻¹` internamente por eficiencia (mismo resultado).
-**Retorna:** `Matrix`
+**Retorna:** `{ matrix: Matrix, steps: Array }` — `steps` propagados del camino que se usó
 **Excepciones:** `DimensionError` si no es cuadrada; `SingularMatrixError` si es singular y n > 6.
-**Ejemplo:** `adjugate(new Matrix([[1,2],[3,4]])).toArray() // [[4,-2],[-3,1]]`
+**Ejemplo:** `adjugate(new Matrix([[1,2],[3,4]])).matrix.toArray() // [[4,-2],[-3,1]]`
 
 ### `conditionNumber(matrix)`
 κ(A) = ‖A‖_F · ‖A⁻¹‖_F.
-**Retorna:** `{ value: number, normA: number, normInverse: number }`
+**Retorna:** `{ value: number, normA: number, normInverse: number, steps: Array }` — `steps` son los de la inversión
 **Excepciones:** `SingularMatrixError` si la matriz es singular.
 **Ejemplo:** `conditionNumber(Matrix.identity(3)).value // 3`
 
 ### `luDecomposition(matrix, tolerance = 1e-10)`
 `P·A = L·U` con pivoteo parcial.
-**Retorna:** `{ L: Matrix, U: Matrix, P: Matrix, steps: Array }`
+**Retorna:** `{ L: Matrix, U: Matrix, P: Matrix, steps: Array }` — cada paso lleva `snapshot` con el estado de `U`
 **Excepciones:** `DimensionError` si no es cuadrada; `SingularMatrixError` si es singular.
 **Ejemplo:** `luDecomposition(new Matrix([[4,3],[6,3]]))`
 
 ### `qrDecomposition(matrix)`
 `A = Q·R` vía Gram-Schmidt clásico.
-**Retorna:** `{ Q: Matrix, R: Matrix }`
+**Retorna:** `{ Q: Matrix, R: Matrix, steps: Array }` — `steps` vacío por ahora
 **Ejemplo:** `qrDecomposition(new Matrix([[1,1],[0,1],[1,0]]))`
 
 ### `choleskyDecomposition(matrix, tolerance = 1e-10)`
 `A = L·Lᵀ`, solo para matrices simétricas definidas positivas.
-**Retorna:** `{ L: Matrix, Lt: Matrix }`
+**Retorna:** `{ L: Matrix, Lt: Matrix, steps: Array }` — `steps` vacío por ahora
 **Excepciones:** `DimensionError` si no es cuadrada o no simétrica; `MathError` (`NOT_POSITIVE_DEFINITE`) si no es definida positiva.
 **Ejemplo:** `choleskyDecomposition(new Matrix([[4,2],[2,3]]))`
 
+### Autovalores: cuál de las cuatro funciones usar
+
+> Cada método vive en su propio archivo desde ADR-007 §3.5 —`algebra/eigen-qr.js`, `algebra/eigen-jacobi.js`, `algebra/eigen-2x2.js`, con `algebra/eigen.js` para el despacho, los autovectores y la diagonalización—. Es organización interna: los nombres públicos y sus firmas no cambiaron, y se siguen importando todos desde `shared/math/index.js`.
+
+
+El problema admite varios algoritmos y ninguno es el mejor en todos los casos, así que la API expone **una entrada que elige** y **cada método por su nombre** (ADR-005):
+
+| Función | Cuándo |
+|---|---|
+| **`eigenvalues`** | **Por defecto.** Quiero los autovalores y no me importa con qué método |
+| `eigenvaluesQR` | Quiero el algoritmo QR en particular — para mostrarlo corriendo |
+| `jacobiEigenDecomposition` | Quiero Jacobi en particular, o necesito los autovectores junto con los autovalores |
+| `eigenvalues2x2` | Quiero la forma cerrada en particular, o necesito distinguir el par complejo |
+
+Si estás eligiendo a ciegas, es `eigenvalues`.
+
+### `eigenvalues(matrix, tolerance = 1e-10, iterations = 500)`
+**Entrada recomendada.** Autovalores reales de una matriz cuadrada, de mayor a menor. Despacha al método adecuado según el tipo de matriz:
+
+| Caso | Método | `method` |
+|---|---|---|
+| 1×1 | el único elemento | `'trivial'` |
+| simétrica de cualquier orden | rotaciones de Jacobi | `'jacobi'` |
+| 2×2 no simétrica | forma cerrada del polinomio característico | `'closed-form-2x2'` |
+| general | QR iterativo | `'qr'` |
+
+`method` dice cuál se usó, que es lo que una calculadora necesita para explicar el procedimiento. `hasComplexHint` avisa que el espectro puede tener pares complejos conjugados, que el motor no representa todavía; para una matriz simétrica es siempre `false`, por el teorema espectral. `iterations` solo afecta al camino QR.
+**Retorna:** `{ values: number[], method: string, hasComplexHint: boolean, steps: Array }` — `steps` son los del método que se despachó
+**Excepciones:** `DimensionError` si no es cuadrada.
+**Ejemplo:** `eigenvalues(new Matrix([[2,1],[1,2]])).values // [3, 1]`
+**Ejemplo:** `eigenvalues(new Matrix([[0,50],[50,0]])) // { values: [50, -50], method: 'jacobi', hasComplexHint: false }`
+
 ### `eigenvaluesQR(matrix, iterations = 500)`
-Autovalores reales aproximados vía algoritmo QR iterativo.
-**Retorna:** `{ values: number[], matrixT: Matrix, hasComplexHint: boolean }`
+Autovalores por el **algoritmo QR iterativo, siempre y sin despacho**: `Aₖ = QₖRₖ`, `Aₖ₊₁ = RₖQₖ`. Útil para mostrar ese algoritmo en particular, con su iterada y su estado de convergencia.
+
+> **Limitación del método, no defecto de la función.** La iteración sin desplazamiento **no converge** cuando dos autovalores tienen el mismo módulo (`±λ`, o un par complejo conjugado): queda un bloque 2×2 sin reducir, la diagonal no son los autovalores y `hasComplexHint` se pone en `true`. Si lo que querés son los autovalores y no este algoritmo, usá **`eigenvalues`**, que despacha a Jacobi en el caso simétrico. Mejorar este camino con desplazamientos de Wilkinson es la deuda D13.
+
+`matrixT` es la iterada `Aₖ` al terminar. `hasComplexHint` acá significa "la iteración no triangularizó", que puede deberse tanto a autovalores complejos como a autovalores reales de igual módulo.
+**Retorna:** `{ values: number[], matrixT: Matrix, hasComplexHint: boolean, steps: Array }` — `steps` vacío por ahora
 **Excepciones:** `DimensionError` si no es cuadrada.
 **Ejemplo:** `eigenvaluesQR(new Matrix([[2,1],[1,2]])).values // [3, 1]`
+**Ejemplo:** `eigenvaluesQR(new Matrix([[0,50],[50,0]])) // { values: [0, 0], hasComplexHint: true } — no convergió; usar eigenvalues`
+
+### `jacobiEigenDecomposition(matrix, tolerance = 1e-10, maxRotations = 1000)`
+Autovalores **y** autovectores de una matriz simétrica real por rotaciones de Jacobi. Converge siempre para matrices simétricas, incluso con autovalores repetidos o de igual módulo. Los autovectores salen ortonormales y en el mismo orden que los autovalores.
+**Retorna:** `{ values: number[], vectors: number[][], rotations: number, converged: boolean, steps: Array }` — `steps` vacío por ahora
+**Excepciones:** `DimensionError` si no es cuadrada; `MathError` (`NOT_SYMMETRIC`) si no es simétrica.
+**Ejemplo:** `jacobiEigenDecomposition(new Matrix([[2,1],[1,2]])).values // [3, 1]`
+
+### `eigenvalues2x2(matrix, tolerance = 1e-10)`
+Autovalores de una matriz 2×2 por su polinomio característico `λ² − tr(A)·λ + det(A) = 0`. Exacto, no iterativo. Si las raíces son complejas conjugadas, `values` viene vacío y el par se informa por partes en `realPart` e `imaginaryPart` (el motor no representa números complejos todavía).
+**Retorna:** `{ values: number[], hasComplexPair: boolean, realPart: number, imaginaryPart: number, steps: Array }` — `steps` vacío por ahora
+**Excepciones:** `DimensionError` si no es cuadrada; `MathError` (`NOT_2X2`) si no es de 2×2.
+**Ejemplo:** `eigenvalues2x2(new Matrix([[0,1],[1,0]])).values // [1, -1]`
+**Ejemplo:** `eigenvalues2x2(new Matrix([[0,-1],[1,0]])).imaginaryPart // 1 (autovalores ±i)`
 
 ### `eigenvectorFor(matrix, lambda, tolerance = 1e-10)`
-Autovector para un autovalor dado, vía núcleo de `(A - λI)`.
+Autovector para un autovalor dado, vía núcleo de `(A - λI)`. Es una pieza de construcción de `eigenvectors`, no una operación que una calculadora ofrezca por separado, así que queda fuera del contrato de `steps` y devuelve el vector pelado.
 **Retorna:** `number[] | null`
 **Ejemplo:** `eigenvectorFor(new Matrix([[2,1],[1,2]]), 3)`
 
-### `eigenvectors(matrix, eigenvalues)`
-**Retorna:** `Array<{ lambda: number, vector: number[]|null }>`
-**Ejemplo:** `eigenvectors(new Matrix([[2,1],[1,2]]), [3, 1])`
+### `eigenvectors(matrix, values)`
+Empareja cada autovalor con su autovector.
+**Retorna:** `{ vectors: Array<{ lambda: number, vector: number[]|null }>, steps: Array }` — `steps` vacío por ahora
+**Ejemplo:** `eigenvectors(new Matrix([[2,1],[1,2]]), [3, 1]).vectors`
 
 ### `diagonalize(matrix)`
 `A = P·D·P⁻¹`.
-**Retorna:** `{ P: Matrix, D: Matrix, Pinv: Matrix }`
+**Retorna:** `{ P: Matrix, D: Matrix, Pinv: Matrix, steps: Array }` — `steps` encadena los de autovalores y autovectores
 **Excepciones:** `MathError` (`NOT_DIAGONALIZABLE`) si los autovectores son linealmente dependientes.
 **Ejemplo:** `diagonalize(new Matrix([[2,1],[1,2]]))`
 
@@ -322,13 +418,13 @@ convert(5, 'kg', 'm');      // lanza DimensionError
 Unidades: `m, km, cm, mm, mi, yd, ft, in, nmi`. **Ejemplo:** `convertDistance(1, 'nmi', 'km') // 1.852`
 
 ### `convertPressure(value, from, to)`
-Unidades: `Pa, kPa, atm, bar, mbar, mmHg, psi, inHg`. **Ejemplo:** `convertPressure(1, 'atm', 'Pa') // 101325`
+Unidades: `Pa, hPa, kPa, atm, bar, mbar, mmHg, psi, inHg`. El milímetro de mercurio se define como el torr (`101325/760` Pa) y la pulgada de mercurio se deriva de él (`25.4 mmHg`), de modo que `1 atm = 760 mmHg` y `1 inHg = 25.4 mmHg` son exactos. `hPa` y `mbar` son la misma unidad (100 Pa) y conviven a propósito: la aeronáutica y la meteorología reportan en hectopascales — el QNH de un altímetro viene en hPa — y `mbar` sigue en uso en instrumental más viejo. **Ejemplos:** `convertPressure(1, 'atm', 'Pa') // 101325`, `convertPressure(1, 'atm', 'hPa') // 1013.25`
 
 ### `convertTemperature(value, from, to)`
 Unidades: `K, C, F, R`. Conversión afín (no solo proporcional). **Ejemplo:** `convertTemperature(32, 'F', 'C') // 0`
 
 ### `convertSpeed(value, from, to)`
-Unidades: `m/s, km/h, mph, kt, ft/s`. **Ejemplo:** `convertSpeed(120, 'kt', 'km/h') // 222.24`
+Unidades: `m/s, km/h, mph, kt, ft/s`. El nudo usa el factor exacto `1852/3600` m/s (una milla náutica por hora). **Ejemplo:** `convertSpeed(120, 'kt', 'km/h') // 222.24`
 
 ### `convertMass(value, from, to)`
 Unidades: `kg, g, mg, ton, lb, oz, slug`. **Ejemplo:** `convertMass(1, 'slug', 'kg') // 14.5939...`
@@ -405,6 +501,12 @@ reexportan desde `index.js`.)*
 
 Todas extienden `Error` (directa o indirectamente) y agregan `code`
 (string estable) y `context` (objeto con datos de depuración).
+
+Los archivos que las definen están en kebab-case, como todo el resto del
+proyecto (`CODING_STANDARDS.md` §2): `math-error.js`, `dimension-error.js`,
+`singular-matrix-error.js`, `interpolation-error.js`. Es implementación
+interna — las clases se importan desde `shared/math/index.js` y sus nombres
+no cambiaron.
 
 | Clase | Extiende | `code` por defecto | Uso típico |
 |---|---|---|---|

@@ -14,8 +14,8 @@
  * ---------------------------------------------------------------------------
  */
 
-import { DimensionError } from '../errors/DimensionError.js';
-import { MathError } from '../errors/MathError.js';
+import { DimensionError } from '../errors/dimension-error.js';
+import { MathError } from '../errors/math-error.js';
 import { isFiniteNumber } from './numbers.js';
 
 /**

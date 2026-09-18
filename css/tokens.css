@@ -1,0 +1,245 @@
+/*
+ * tokens.css
+ * ---------------------------------------------------------------------------
+ * Descripción: tokens del sistema de diseño de CalculadorasIngenieria.
+ *
+ *   Este archivo define VALORES, no apariencia. No contiene un solo selector
+ *   de componente: solo `:root` y los dos ganchos de tema. Si en algún momento
+ *   aparece acá una regla del tipo `.btn { ... }`, el archivo dejó de cumplir
+ *   su función y el sistema empieza a ser imposible de reutilizar.
+ *
+ *   Tres capas, y la del medio es la que impide que el sistema quede atado a
+ *   la calculadora que lo originó:
+ *
+ *   1. PRIMITIVAS  (--ink-*, --indigo-*, --teal-*, ...)
+ *      La escala cruda. No tienen significado. Un componente nunca las nombra.
+ *
+ *   2. ROLES       (--surface-panel, --text-primary, --accent, ...)
+ *      Lo que un componente sí consume. Un rol dice para qué sirve el color,
+ *      no cuál es. Cambiar el tema cambia a qué primitiva apunta cada rol; los
+ *      componentes no se enteran.
+ *
+ *   3. ACENTO POR DISCIPLINA
+ *      `--accent` es el único punto de personalización por módulo. La
+ *      plataforma declara el suyo acá; cada calculadora lo redefine en su
+ *      propia hoja (ver `algebra.css`). El acento de plataforma NO es el de
+ *      ninguna disciplina, a propósito: si un mismo color significara "la
+ *      plataforma" y "álgebra", al llegar la segunda calculadora no habría
+ *      forma de saber cuál de las dos cosas se quiso decir.
+ *
+ * CONTRASTE
+ *   Cada par color/superficie fue medido (WCAG 2.1, algoritmo de luminancia
+ *   relativa) contra LAS TRES superficies del tema, no contra la más
+ *   favorable. El número anotado al lado de cada rol es el PEOR de los tres, y
+ *   dice sobre qué superficie se da. Documentar el peor par es lo que evita
+ *   que un cambio de fondo rompa un token que nadie tocó.
+ *
+ *   Superficies medidas — oscuro: #14141f página, #1f1f31 panel, #12121c campo.
+ *                         claro:  #f3f4f9 página, #ffffff panel, #f7f8fc campo.
+ *   Umbral exigido: 4.5:1 para texto normal, 3:1 para bordes y elementos no
+ *   textuales. Ningún rol de texto queda por debajo de 4.5.
+ *
+ * TIPOGRAFÍA
+ *   Stack de sistema, sin fuentes web. `AI_RULES.md` §11 prohíbe CDN y
+ *   `assets/` no tiene archivos de fuente, así que declarar Inter o JetBrains
+ *   Mono —como hacía `legacy/calculadora-algebra-v1/style.css`— solo funciona
+ *   en las máquinas que ya las tengan instaladas, y en el resto cae en un
+ *   fallback que nadie eligió.
+ *
+ * Autor: Chat 4 — Diseño y UX
+ * Fecha de creación: 2026-09-14
+ * Dependencias: ninguna. Es el primer archivo de la cascada.
+ * ---------------------------------------------------------------------------
+ */
+
+:root {
+  /* ==========================================================================
+     1. PRIMITIVAS
+     ========================================================================== */
+
+  /* Neutros oscuros — la consola científica del legacy, conservada. */
+  --ink-900: #12121c;
+  --ink-850: #14141f;
+  --ink-800: #1b1b2b;
+  --ink-750: #1f1f31;
+  --ink-700: #26263a;
+  --ink-600: #33334a;
+  --ink-500: #4a4b63;
+  --ink-400: #8a8ba2;
+  --ink-300: #9494ac;
+  --ink-100: #e7e7f2;
+
+  /* Neutros claros. */
+  --paper-000: #ffffff;
+  --paper-050: #f7f8fc;
+  --paper-100: #f3f4f9;
+  --paper-200: #e8e9f2;
+  --paper-300: #d4d6e3;
+  --paper-400: #b9bbcc;
+  --paper-600: #6b6d80;
+  --paper-700: #5c5d72;
+  --paper-900: #1f2033;
+
+  /* Índigo — acento institucional de la plataforma. */
+  --indigo-300: #8fa4ff;
+  --indigo-400: #6f88ff;
+  --indigo-700: #3a49b8;
+  --indigo-800: #2f3ea3;
+  --indigo-950: #0b1030;
+
+  /* Teal — acento de la disciplina álgebra. Vive acá porque la rampa es del
+     sistema; quién la usa lo decide la hoja del módulo, no este archivo. */
+  --teal-300: #4fd6c0;
+  --teal-400: #2fb7a0;
+  --teal-700: #0a6f63;
+  --teal-800: #096256;
+  --teal-950: #06251f;
+
+  /* Estados. */
+  --amber-300: #f5b95c;
+  --amber-800: #8a5500;
+  --red-300: #f2716b;
+  --red-700: #b3352c;
+  --green-300: #6fdc9a;
+  --green-800: #126640;
+
+  /* ==========================================================================
+     2. ESCALAS NO CROMÁTICAS
+     Son idénticas en los dos temas: no se redefinen más abajo.
+     ========================================================================== */
+
+  /* Espaciado, base 4 px. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* Tipografía. Razón 1.2 sobre 1rem. */
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'SF Mono', Consolas, 'Liberation Mono', monospace;
+
+  --text-xs: 0.694rem;
+  --text-sm: 0.833rem;
+  --text-md: 1rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.44rem;
+  --text-2xl: 1.728rem;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.55;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  /* Radios. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* Medidas de la cáscara de aplicación. */
+  --topbar-height: 64px;
+  --sidebar-width: 280px;
+  --content-max: 1400px;
+
+  /* Duraciones. Las consume `base.css`, que las anula con reduced-motion. */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+
+  /* Grosor del anillo de foco. El color es un rol, está más abajo. */
+  --focus-ring-width: 3px;
+
+  /* ==========================================================================
+     3. ROLES SEMÁNTICOS
+     `light-dark()` toma el primer valor con `color-scheme: light` y el segundo
+     con `dark`. Se eligió sobre la duplicación del bloque de roles en un
+     `@media (prefers-color-scheme)` más un `[data-theme]` porque esa
+     duplicación es la fuente clásica de temas desincronizados: alguien agrega
+     un rol en un bloque y se olvida del otro, y el defecto solo se ve en el
+     tema que esa persona no usa. Acá cada rol existe una sola vez y los dos
+     valores están uno al lado del otro.
+
+     `color-scheme` además hace que los controles nativos, las barras de
+     desplazamiento y el fondo del documento sigan el tema sin una sola regla
+     escrita a mano.
+     ========================================================================== */
+
+  color-scheme: light dark;
+
+  /* Superficies. */
+  --surface-page: light-dark(var(--paper-100), var(--ink-850));
+  --surface-panel: light-dark(var(--paper-000), var(--ink-750));
+  --surface-raised: light-dark(var(--paper-000), var(--ink-800));
+  --surface-field: light-dark(var(--paper-050), var(--ink-900));
+  --surface-hover: light-dark(var(--paper-100), var(--ink-700));
+
+  /* Texto. Peor par de los tres fondos del tema:
+     primary    claro 14.57 sobre página · oscuro 13.18 sobre panel
+     secondary  claro  5.86 sobre página · oscuro  5.46 sobre panel
+     muted      claro  4.64 sobre página · oscuro  4.85 sobre panel
+     El atenuado claro es el más ajustado de todo el sistema (4.64 contra un
+     umbral de 4.5). Si alguna vez se aclara `--surface-page`, es el primero
+     que hay que volver a medir. */
+  --text-primary: light-dark(var(--paper-900), var(--ink-100));
+  --text-secondary: light-dark(var(--paper-700), var(--ink-300));
+  --text-muted: light-dark(var(--paper-600), var(--ink-400));
+
+  /* Bordes. No son texto: el umbral es 3:1 para los que separan controles y
+     no hay mínimo para los decorativos. */
+  --border-strong: light-dark(var(--paper-300), var(--ink-600));
+  --border-soft: light-dark(var(--paper-200), var(--ink-700));
+
+  /* Acento de plataforma. NO es el de ninguna disciplina.
+     claro  #3a49b8 → 6.77 sobre página (peor de tres), blanco encima 7.43
+     oscuro #8fa4ff → 6.87 sobre panel  (peor de tres), #0b1030 encima 7.89 */
+  --accent: light-dark(var(--indigo-700), var(--indigo-300));
+  --accent-strong: light-dark(var(--indigo-800), var(--indigo-400));
+  --accent-contrast: light-dark(var(--paper-000), var(--indigo-950));
+  --accent-wash: light-dark(rgb(58 73 184 / 0.10), rgb(143 164 255 / 0.14));
+
+  /* Estados.
+     warn    claro 5.66 sobre página · oscuro 9.22 sobre panel
+     danger  claro 5.52 sobre página · oscuro 5.66 sobre panel
+     ok      claro 6.37 sobre página · oscuro 9.53 sobre panel */
+  --state-warn: light-dark(var(--amber-800), var(--amber-300));
+  --state-warn-wash: light-dark(rgb(138 85 0 / 0.10), rgb(245 185 92 / 0.12));
+  --state-danger: light-dark(var(--red-700), var(--red-300));
+  --state-danger-wash: light-dark(rgb(179 53 44 / 0.10), rgb(242 113 107 / 0.12));
+  --state-ok: light-dark(var(--green-800), var(--green-300));
+  --state-ok-wash: light-dark(rgb(18 102 64 / 0.10), rgb(111 220 154 / 0.12));
+
+  /* Foco. Se mantiene deliberadamente distinto del acento: si el anillo de
+     foco fuera del color del módulo, cambiaría de contraste con cada
+     disciplina y habría que volver a medirlo cada vez. */
+  --focus-ring: light-dark(var(--indigo-700), var(--indigo-300));
+
+  /* Sombras. */
+  --shadow-sm: 0 1px 2px light-dark(rgb(20 20 40 / 0.08), rgb(0 0 0 / 0.35));
+  --shadow-md: 0 4px 12px light-dark(rgb(20 20 40 / 0.10), rgb(0 0 0 / 0.40));
+  --shadow-lg: 0 10px 30px light-dark(rgb(20 20 40 / 0.14), rgb(0 0 0 / 0.50));
+}
+
+/* ============================================================================
+   4. GANCHOS DE TEMA EXPLÍCITO
+   Sin estos dos bloques el tema lo decide el sistema operativo
+   (`prefers-color-scheme`, que es lo que lee `color-scheme: light dark`).
+   Con ellos, un atributo en `<html>` gana.
+
+   Hoy nada escribe ese atributo: no hay interruptor de tema en el HTML y no se
+   le pidió uno al Chat 3. Los ganchos existen para que el día que el Paso 4
+   agregue el interruptor, el trabajo sea escribir el atributo y nada más.
+   ============================================================================ */
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}

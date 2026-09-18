@@ -1,0 +1,305 @@
+/*
+ * algebra.css
+ * ---------------------------------------------------------------------------
+ * Descripción: hoja de la calculadora de álgebra lineal.
+ *
+ *   Es el ÚNICO archivo de `css/` que conoce esta calculadora. Contiene dos
+ *   cosas y nada más:
+ *
+ *   1. El acento de la disciplina.
+ *   2. Lo que solo existe en álgebra: la zona de carga de matrices, el
+ *      selector de dimensión, la disposición de los dos paneles de resultado y
+ *      el panel de atajos.
+ *
+ *   Todo lo demás lo va a heredar cualquier calculadora que se escriba
+ *   después: la cáscara, los botones, los paneles, el historial y el aviso
+ *   flotante están en `components.css`; los bloques de resultado, los avisos y
+ *   el procedimiento paso a paso, en `results.css`.
+ *
+ * POR QUÉ LOS @import
+ *   `modules/algebra/index.html` enlaza una sola hoja, y ese archivo es del
+ *   Chat 3. Encadenar las otras cuatro desde acá evita pedirle un cambio de
+ *   HTML para algo que el CSS resuelve solo. El costo es una cascada de
+ *   descargas en serie: cuando el Paso 4 arme la cáscara compartida conviene
+ *   que el HTML enlace las cinco hojas en paralelo y estos @import
+ *   desaparezcan. Queda anotado en el HANDOFF como D19; no bloquea nada hoy.
+ *
+ * Autor: Chat 4 — Diseño y UX
+ * Fecha de creación: 2026-09-14
+ * Dependencias: tokens.css, base.css, components.css, results.css.
+ * ---------------------------------------------------------------------------
+ */
+
+@import url('tokens.css');
+@import url('base.css');
+@import url('components.css');
+@import url('results.css');
+
+/* ============================================================================
+   1. ACENTO DE LA DISCIPLINA
+
+   El teal de la consola científica de `legacy/calculadora-algebra-v1/`, con el
+   valor del tema claro corregido: el `#0f9d8c` original daba 3.38:1 sobre
+   blanco, por debajo del 4.5 que exige el texto normal, y el acento se usa en
+   botones y enlaces, que son texto. `#0a6f63` da 5.51:1 sobre la superficie
+   más exigente de las tres.
+
+   Redefinir `--accent` acá es todo el mecanismo de personalización por módulo.
+   La plataforma declara un índigo institucional en `tokens.css` y esta línea
+   lo reemplaza; si se borrara, la calculadora se pondría índigo y seguiría
+   funcionando. Esa es la prueba de que el acento de plataforma y el de
+   disciplina son dos cosas distintas y no el mismo color con dos nombres.
+
+   Cuando el Paso 4 monte varias calculadoras bajo una misma cáscara, esta
+   declaración se muda de `:root` a un contenedor `.module-algebra` y el resto
+   del archivo no cambia: todas las reglas de abajo ya están acotadas a
+   elementos que solo existen en esta calculadora.
+   ============================================================================ */
+
+:root {
+  --accent: light-dark(var(--teal-700), var(--teal-300));
+  --accent-strong: light-dark(var(--teal-800), var(--teal-400));
+  --accent-contrast: light-dark(var(--paper-000), var(--teal-950));
+  --accent-wash: light-dark(rgb(10 111 99 / 0.10), rgb(79 214 192 / 0.14));
+}
+
+/* ============================================================================
+   2. ZONA DE CARGA DE MATRICES
+   ============================================================================ */
+
+.matrices-zone {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.matrix-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-4);
+  background-color: var(--surface-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.matrix-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.dim-badge {
+  display: inline-block;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--surface-hover);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* ----------------------------------------------------------------------------
+   2.1 Grilla de celdas
+
+   `view/matrix-input.js` escribe `--grid-cols` en el contenedor con el número
+   de columnas. El `3` del fallback es el valor con el que arranca la
+   calculadora; si por algún motivo la variable no llegara, la grilla se ve mal
+   pero se ve, en vez de colapsar a una sola columna.
+
+   El ancho de celda es `minmax(2.75rem, 1fr)`: con una 15×15 quince columnas
+   de ancho fijo no entran en ninguna pantalla, así que la tarjeta desplaza en
+   horizontal y las celdas no bajan de un tamaño escribible.
+   ---------------------------------------------------------------------------- */
+
+.matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--grid-cols, 3), minmax(2.75rem, 1fr));
+  gap: var(--space-1);
+  max-width: 100%;
+  padding-bottom: var(--space-1);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.matrix-input {
+  width: 100%;
+  min-width: 2.75rem;
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-field);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-align: center;
+  transition: border-color var(--motion-fast), background-color var(--motion-fast);
+}
+
+.matrix-input:hover {
+  border-color: var(--accent);
+}
+
+/* Una celda inválida se marca con color, con grosor de borde y con un fondo
+   lavado. Tres señales y no una: el color solo no sirve para quien no
+   distingue el rojo del gris, y la calculadora ya señala además la posición
+   `(fila, columna)` en el texto del error. */
+.matrix-input.is-invalid {
+  border-color: var(--state-danger);
+  border-width: 2px;
+  background-color: var(--state-danger-wash);
+  color: var(--state-danger);
+}
+
+/* ============================================================================
+   3. CONTROLES AUXILIARES
+   ============================================================================ */
+
+.extra-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--surface-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.extra-controls label {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.extra-controls input {
+  width: 6rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-field);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-align: right;
+}
+
+.matrix-size-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.matrix-size-control label {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.matrix-size-control select {
+  min-height: 2.5rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-field);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+/* ============================================================================
+   4. ZONA DE RESULTADOS
+
+   Dos paneles lado a lado: resultado y procedimiento. Se reparten en partes
+   iguales y no en una proporción fija porque el procedimiento de una 15×15
+   necesita tanto ancho como el resultado, y el de una operación sin desarrollo
+   no necesita ninguno — una proporción fija acierta en un caso y falla en el
+   otro.
+   ============================================================================ */
+
+.results-zone {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+
+/* El panel de atajos es material de referencia, no de trabajo: ocupa el ancho
+   completo abajo de todo y se muestra en varias columnas si hay lugar. */
+.shortcuts-panel .pairs-list {
+  padding: var(--space-4);
+}
+
+.shortcuts-panel .pairs-name {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-field);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+/* ============================================================================
+   5. ADAPTACIÓN A PANTALLAS ANGOSTAS
+   ============================================================================ */
+
+@media (max-width: 1080px) {
+  .results-zone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .matrices-zone {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .matrix-card,
+  .extra-controls {
+    padding: var(--space-3);
+  }
+
+  .matrix-size-control {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+
+  .matrix-size-control .btn {
+    flex: 0 0 auto;
+  }
+
+  .extra-controls {
+    justify-content: space-between;
+  }
+
+  .shortcuts-panel .pairs-list {
+    padding: var(--space-3);
+  }
+}
+
+/* ============================================================================
+   6. IMPRESIÓN
+   ============================================================================ */
+
+@media print {
+  .matrices-zone,
+  .extra-controls,
+  .matrix-size-control {
+    display: none !important;
+  }
+
+  .results-zone {
+    display: block;
+  }
+}
