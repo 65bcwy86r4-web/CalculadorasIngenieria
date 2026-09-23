@@ -54,3 +54,4 @@ directorio (`CHAT_ROLES.md` §4).
 | [005](ADR-005-api-de-autovalores.md) | Nombres de la API de autovalores | Aceptado |
 | [006](ADR-006-interfaz-antes-que-port.md) | La primera calculadora va antes que el resto del port | Aceptado |
 | [007](ADR-007-contrato-de-steps.md) | Contrato de `steps`: forma de retorno del procedimiento | Aceptado |
+| [008](ADR-008-pasos-de-metodos-iterativos.md) | Densidad de pasos: de dónde sale cuántos pasos emite un procedimiento | Aceptado |

@@ -3,7 +3,7 @@
 **Fuente de verdad operativa del proyecto.** Todo chat lo lee al empezar. El
 responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 
-Última actualización: **2026-09-18**
+Última actualización: **2026-09-23**
 
 - **Repositorio:** https://github.com/65bcwy86r4-web/CalculadorasIngenieria
 - **Publicado en:** https://65bcwy86r4-web.github.io/CalculadorasIngenieria/
@@ -22,10 +22,10 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 
 | Componente | Estado | Chat responsable |
 |---|---|---|
-| Motor `shared/math/` | Completo y documentado. 38 archivos. Cubierto por la suite. Sin hallazgos abiertos. 95 exportaciones públicas, sin altas ni bajas. **Procedimiento escrito en 16 de las 18 funciones alcanzadas por ADR-007** (Paso 2c-2 parte B, 2026-09-23); quedan `eigenvectors` y `diagonalize`. | 2 |
+| Motor `shared/math/` | Completo y documentado. 38 archivos. Cubierto por la suite. Sin hallazgos abiertos. 95 exportaciones públicas, sin altas ni bajas. **Procedimiento escrito en 16 de las 18 funciones alcanzadas por ADR-007** (Paso 2c-2 parte B, 2026-09-23). Queda `eigenvectors` con `steps: []`; `diagonalize` **no** está vacía —hereda el procedimiento de Jacobi, que describe la operación equivocada: D25. | 2 |
 | `docs/` técnica | Architecture, API, Algorithms, Roadmap completos | 1 / 2 |
 | `docs/governance/` | 4 documentos rectores, versión 1.0 | 1 |
-| `tests/` | **329 pruebas en 17 archivos, todas pasan.** Pasos 1, 1b, 2a y 2c-1 cerrados. Incluye `steps-contract.test.js`. | 5 |
+| `tests/` | **342 pruebas en 17 archivos: 341 en verde y 1 en rojo a propósito** — la cota de legibilidad, que falla porque nueve funciones la superan en 15×15 (D24 (b)). Ese rojo es el pedido del Chat 1, no una regresión: el próximo chat que corra la suite tiene que encontrarlo ahí. | 5 |
 | `modules/` | **`algebra/` completa (Versión 3a, Paso 3).** 21 archivos, 27 operaciones, importando solo desde `shared/math/index.js`. Primer consumidor real de la API pública. Con estilos desde el Paso 3b. | 3 |
 | `css/` | **Sistema de diseño completo (Paso 3b).** 5 archivos, ninguno por encima de las 500 líneas efectivas: `tokens.css` (tokens en tres capas, temas claro y oscuro con `light-dark()`), `base.css` (reset y tipografía), `components.css` (cáscara y controles), `results.css` (bloques de resultado, avisos y procedimiento) y `algebra.css` (lo específico del módulo). Todo par color/superficie medido ≥ 4.5:1. El 404 de `css/algebra.css` está cerrado | 4 |
 | `assets/` | Vacío, y por ahora corresponde: el sistema usa stack de fuentes del sistema y no hay imágenes | 4 |
@@ -51,6 +51,7 @@ Versión 3 es la cáscara: dashboard, navegación, historial y favoritos (Paso 4
 | [ADR-005](adr/ADR-005-api-de-autovalores.md) | `eigenvalues` es la entrada que despacha; `eigenvaluesQR` vuelve a ser el QR explícito. Cada nombre dice su método. | 2026-09-13 |
 | [ADR-006](adr/ADR-006-interfaz-antes-que-port.md) | La calculadora de álgebra (Paso 3) va antes que el resto del port. Una capacidad del motor se escribe cuando una calculadora la pide. | 2026-09-13 |
 | [ADR-007](adr/ADR-007-contrato-de-steps.md) | Contrato único de `steps`: forma del paso, vocabulario cerrado de `type`, y `type`+`text` como mínimo suficiente para renderizar. Se congela la forma antes de llenar el contenido. **Enmendado el 2026-09-13** (§3.3, D16) y el **2026-09-18** (§3.2 qué puede ser un `snapshot`; §3.2 un solo paso `final`, D22; §3.6 límites de la prueba de contrato). | 2026-09-13 |
+| [ADR-008](adr/ADR-008-pasos-de-metodos-iterativos.md) | Densidad de pasos: uno por unidad si el trabajo es `O(n)`, uno por fila si es `O(n²)`, y en lo iterativo la primera iteración más un hito por orden de magnitud del residuo. Medir la convergencia no puede cambiarla. Aplica también a los métodos numéricos del Paso 5. | 2026-09-23 |
 
 ---
 
@@ -66,12 +67,20 @@ Versión 3 es la cáscara: dashboard, navegación, historial y favoritos (Paso 4
 | 3 | Paso 3c: ganchos de estado para el panel (pedido del Chat 4) | Aprobado el 2026-09-14, no bloquea al 3b |
 | 2 | Paso 2c-2 **parte A**: enmiendas de ADR-007 (D16), D17, grupo 1 y grupo 4 | **Cerrada el 2026-09-18**, verificada por el Chat 1 |
 | 2 | D24 (a): la cota de legibilidad se mide ahora al tamaño máximo del selector | **Cerrada el 2026-09-23.** La suite queda con 1 prueba en rojo **a propósito**: ver §5, D24 |
-| 2 | Paso 2c-2 **parte B**: grupo 2 y los tres métodos de autovalores | **Cerrada el 2026-09-23** |
+| 2 | Paso 2c-2 **parte B**: grupo 2 y los tres métodos de autovalores | **Cerrada el 2026-09-23**, verificada por el Chat 1. Falta `eigenvectors` y hay que corregir `diagonalize` (D25) |
 | — | — | Ninguna otra sesión abierta |
 
-**Siguientes, independientes entre sí:** el **Paso 2c-2 parte B** (Chat 2) y el
-**Paso 3c** (Chat 3). Ninguno bloquea al otro y las zonas no se tocan, así que
-el orden lo elige el responsable del proyecto.
+**Siguientes, independientes entre sí:**
+
+1. **Cierre del Paso 2c-2** (Chat 2): `eigenvectors`, **D25** (corregir el
+   procedimiento heredado de `diagonalize`) y **D26** (consolidar `format`).
+   D25 es lo más urgente de las tres porque está visible en la calculadora hoy.
+2. **Paso 3c** (Chat 3), que además arrastra **D23 y D24 (b)**: qué hacer con
+   los procedimientos de 220 pasos y ~99 000 celdas. Ahora hay números medidos
+   para decidirlo.
+
+Ninguno bloquea al otro y las zonas no se tocan, así que el orden lo elige el
+responsable del proyecto.
 
 **Para el Chat 3, cuando le toque:** `solveSystem` ya devuelve `classification`.
 La función `classificationOf` de `modules/algebra/operations/system-ops.js`
@@ -92,6 +101,17 @@ interpolación vuelve a dar los valores correctos. El ejemplo del JSDoc de
 `solveSystem` es `(2.2, 3.6)`: reemplazado en el sistema, da `(8, 13)`. Los 10
 tipos del vocabulario, verificados función por función, sin ninguno fuera de
 lista. **Un hallazgo, anotado como D24.**
+
+**Verificación independiente de la parte B y de D24 (a), Chat 1, sobre
+`46eb710`.** 341 en verde y el rojo intencional de D24. Contra el commit
+anterior y contra los valores devueltos: los autovalores de `eigenvalues`,
+`eigenvaluesQR` y `jacobiEigenDecomposition` son **bit a bit idénticos** a los de
+`25dd818` en ocho matrices, hasta 15×15 — o sea que **medir la convergencia
+efectivamente no la cambia**, que era la afirmación que había que comprobar. El
+último `snapshot` de Cholesky es exactamente la `L` devuelta y `L·Lᵀ = A` hasta
+3.55e-15; el cierre de Jacobi trae los autovalores que devuelve. Ninguna de las
+cinco funciones nuevas entró a la lista de excesos de D24. Ninguna pasa las 50
+líneas de `AI_RULES.md` §10. **Un hallazgo, D25, y una deuda menor, D26.**
 
 Los cuatro archivos viejos de `shared/math/errors/` se borraron y el Paso 2a
 quedó commiteado en `develop` el 2026-09-13. Verificado contra el repositorio
@@ -373,6 +393,8 @@ más trabajo.
 | `rowEchelon` / `rank` | 102 | 22 950 | 0.28 MB |
 
 **El número que importa no es el de pasos sino el de celdas:** un procedimiento de `inverse` en 15×15 son 1.12 MB de JSON, casi todo `snapshot`. Los conteos difieren en ±2 pasos según la matriz (el Chat 1 midió 218 donde acá dan 220): depende de cuántos intercambios de fila pida el pivoteo | `tests/math/steps-contract.test.js`, `shared/math/algebra/inverse.js`, `gauss.js` | **(a) resuelta el 2026-09-23** — (b) abierta, con D23 |
+| D25 | **`diagonalize` muestra el procedimiento de otra operación.** La bitácora de la parte B la da por `steps: []`, pero no lo está: hereda los pasos de `eigenvalues` y cierra con un `final` que dice "la matriz quedó diagonal tras N rotaciones: su diagonal son los autovalores, las columnas acumuladas son los autovectores". Nunca nombra `P`, `D` ni `P⁻¹` —las tres matrices que la calculadora muestra justo arriba— ni enuncia `A = P·D·P⁻¹`, que es lo que se pidió. Es el caso de `conditionNumber` de la parte A repetido, y lo cubre la regla general que ya está en ADR-007 §4: heredar los pasos de una auxiliar no alcanza si el procedimiento resultante no explica la operación que se pidió. **Está vivo en la interfaz**: `modules/algebra/operations/eigen-ops.js` pasa `outcome.steps` directo al panel de la operación "Diagonalización (A = PDP⁻¹)". Es peor que estar vacío: un `steps: []` se dibuja como "esta operación todavía no muestra el desarrollo", que es honesto, y esto se dibuja como un procedimiento terminado de otra cosa. La prueba de contrato no lo ve porque `diagonalize` figura con `esperaPasos: false` | `shared/math/algebra/eigen.js`, `tests/math/steps-contract.test.js` | **Alta — Chat 2, con `eigenvectors`** |
+| D26 | Siete archivos de `shared/math/algebra/` definen la misma función privada `format(value) { return value.toFixed(4); }` —`cholesky`, `determinant`, `eigen-2x2`, `eigen-jacobi`, `eigen-qr`, `inverse`, `qr`—, y nueve usan `toFixed(4)` suelto. La condición de salida que el propio Chat 2 fijó en la parte A era "si la parte B necesita el mismo formateo en más de cinco lugares nuevos, pasa a ser una llamada a `formatter/`"; la parte B agregó exactamente cinco, así que la condición quedó al borde sin cruzarse. El número que importa es el total, no el incremento. `formatter/` es Capa 3 y `algebra/` es Capa 4, así que la dependencia está permitida por Architecture.md §2 — no hay obstáculo arquitectónico, solo trabajo mecánico. Se hace junto con `eigenvectors` y D25, en la misma sesión, antes de que aparezcan más llamadores | `shared/math/algebra/*.js`, `shared/math/formatter/format.js` | Baja — Chat 2, con D25 |
 | D19 | `css/algebra.css` encadena `tokens.css`, `base.css` y `components.css` con `@import`, que los descarga en serie. Se hizo así porque `modules/algebra/index.html` enlaza una sola hoja y ese archivo es del Chat 3: evitar un pedido de cambio de HTML por algo que el CSS resuelve solo. Cuando el Paso 4 arme la cáscara compartida, el HTML debería enlazar las cuatro hojas en paralelo y estos `@import` desaparecer | `css/algebra.css`, `modules/*/index.html` | Baja — Paso 4 |
 | D20 | En pantallas angostas el menú lateral no puede ser un cajón superpuesto. El único estado que le pone el JavaScript es `.is-hidden` (`app.js:408`) y su ausencia significa "visible", así que un cajón arrancaría abierto tapando la pantalla en cada carga. Queda resuelto como tira desplegable en el flujo, con altura acotada y desplazamiento propio: utilizable, pero come 15 rem de alto arriba del contenido. Un cajón de verdad necesita un segundo estado del Chat 3 (`.sidebar.is-open`, cerrado por defecto bajo cierto ancho). **Evidencia:** `components.css` §13 y `app.js:408`. **Confirmada por el Chat 1 el 2026-09-18:** el segundo estado se agrega en el Paso 4, junto con la cáscara, no antes — el cajón pertenece a la navegación de la plataforma y hacerlo ahora dentro de una calculadora lo ataría al módulo equivocado | `modules/algebra/app.js`, `css/components.css` | Media — Paso 4 |
 | D21 | No hay interruptor de tema. Los temas funcionan por `prefers-color-scheme` y `tokens.css` deja listos los ganchos `[data-theme="light"]` y `[data-theme="dark"]` en `<html>`, pero nada los escribe. Quien tenga el sistema operativo en claro no puede ver el tema oscuro y viceversa. El control es zona del Chat 3 y pertenece a la cáscara del Paso 4, no a esta calculadora | `js/`, `index.html` | Baja — Paso 4 |
@@ -380,6 +402,76 @@ más trabajo.
 ---
 
 ## 6. Bitácora
+
+### 2026-09-23 — Verificación de la parte B y ADR-008 · Chat 1
+
+**Qué se hizo.** Verificación independiente de las dos sesiones del Chat 2
+—D24 (a) y la parte B— sobre `46eb710` clonado, y el ADR que le faltaba a la
+regla de densidad de pasos.
+
+**Lo que se verificó, y cómo.** Recalculando contra el commit anterior y contra
+los valores devueltos, no releyendo el código:
+
+- **La afirmación más fuerte de la sesión es cierta.** Observar la convergencia
+  no la cambia: los autovalores de `eigenvalues`, `eigenvaluesQR` y
+  `jacobiEigenDecomposition` son **bit a bit idénticos** a los de `25dd818`, en
+  ocho matrices distintas incluidas 8×8 y 15×15. Diferencia máxima 0.00e+0. La
+  norma subdiagonal se mide y se narra sin tocar la iteración.
+- Los pasos dicen la verdad sobre lo que se devuelve: el último `snapshot` de
+  Cholesky es exactamente la `L` devuelta, en 3×3, 8×8 y 15×15, y `L·Lᵀ = A`
+  hasta 3.55e-15. El cierre de Jacobi trae los autovalores que la función
+  devuelve, los tres y los ocho.
+- La lista de excesos de D24 sigue teniendo las mismas nueve funciones de Gauss
+  e inversión. Ninguna de las cinco de la parte B entró, que es la comprobación
+  que valida la regla donde importa.
+- El cierre del caso que no converge es honesto y no inventa hitos.
+- Ninguna función pasa el máximo de 50 líneas de `AI_RULES.md` §10.
+
+**D24 (a), aparte: la métrica que agregó es la que cambia la decisión.** Contar
+celdas de `snapshot` además de pasos convierte D24 (b) en otra discusión.
+`inverse` en 15×15 son 220 pasos pero **98 550 celdas**, y `conditionNumber`,
+99 225. Paginar el panel no achica eso: el payload llega entero igual. Sin ese
+número, (b) se habría decidido sobre el conteo de pasos, que subestima el
+problema por dos órdenes de magnitud.
+
+**ADR-008.** La regla de densidad —opción C— estaba escrita solo en una entrada
+de bitácora. Es una regla que gobierna todo procedimiento que el motor emita de
+acá en adelante, incluidos `newtonRaphson`, `bisection`, `secant`, `simpson` y
+`trapezoidal` del Paso 5, que son iterativos o de subdivisión y caen bajo la
+misma tabla. `docs/adr/README.md` dice que dentro de seis meses la pregunta "¿por
+qué esto se decidió así?" va a tener respuesta o no va a tenerla; una bitácora
+de la sesión 14 no es esa respuesta. Queda como ADR-008, con las cuatro
+alternativas y con la regla 3.1 —medir la convergencia no puede cambiarla—
+escrita como condición, que es lo que separa esta decisión de una que habría
+modificado el motor.
+
+**Un hallazgo, D25.** La bitácora de la parte B dice que quedan dos funciones con
+`steps: []`, `eigenvectors` y `diagonalize`. **`diagonalize` no está vacía.**
+Hereda el procedimiento de `eigenvalues` y cierra con "la matriz quedó diagonal
+tras N rotaciones: su diagonal son los autovalores, las columnas acumuladas son
+los autovectores" — sin nombrar `P`, `D` ni `P⁻¹`, que son las tres matrices que
+la calculadora muestra justo encima, y sin enunciar `A = P·D·P⁻¹`, que es la
+operación que el usuario pidió. Está vivo en la interfaz hoy.
+
+Es el caso de `conditionNumber` de la parte A repetido, y la regla que lo cubre
+ya está escrita en ADR-007 §4 desde entonces. Que haya vuelto a pasar con la
+regla escrita dice algo útil: la propagación de pasos es silenciosa por
+construcción —una función hereda el procedimiento de su auxiliar sin hacer nada—
+así que la revisión tiene que ir a buscarla en cada función que componga, no
+esperar a que se note. La prueba de contrato tampoco lo iba a encontrar:
+`diagonalize` figura con `esperaPasos: false`, que no verifica ni que tenga
+pasos ni que no los tenga.
+
+**D26.** Siete archivos de `algebra/` definen la misma `format(value)` de tres
+líneas. La condición de salida que el Chat 2 se fijó en la parte A —más de cinco
+lugares nuevos— quedó justo al borde sin cruzarse, porque cuenta el incremento y
+lo que importa es el total. Se consolida contra `formatter/`, que la Capa 4
+tiene permitido usar, junto con D25 y `eigenvectors`.
+
+**Lo que sigue sin dueño.** D23 y D24 (b) siguen siendo del Chat 3, ahora con el
+dato de las celdas sobre la mesa.
+
+---
 
 ### 2026-09-23 — Procedimientos del motor, parte B (Paso 2c-2) · Chat 2
 
