@@ -65,6 +65,7 @@ Versión 3 es la cáscara: dashboard, navegación, historial y favoritos (Paso 4
 | 4 | Paso 3b: sistema de diseño y estilos de la calculadora | **Cerrado el 2026-09-14** |
 | 3 | Paso 3c: ganchos de estado para el panel (pedido del Chat 4) | Aprobado el 2026-09-14, no bloquea al 3b |
 | 2 | Paso 2c-2 **parte A**: enmiendas de ADR-007 (D16), D17, grupo 1 y grupo 4 | **Cerrada el 2026-09-18**, verificada por el Chat 1 |
+| 2 | D24 (a): la cota de legibilidad se mide ahora al tamaño máximo del selector | **Cerrada el 2026-09-23.** La suite queda con 1 prueba en rojo **a propósito**: ver §5, D24 |
 | — | — | Ninguna otra sesión abierta |
 
 **Siguientes, independientes entre sí:** el **Paso 2c-2 parte B** (Chat 2) y el
@@ -357,7 +358,20 @@ más trabajo.
 | D11 | `known-defects.test.js` quedó vacío (0 pruebas, el archivo con su explicación intacta) para que el próximo hallazgo tenga dónde anotarse. Si el Chat 5 prefiere borrarlo y recrearlo cuando haga falta, hay que sacarlo también de la estructura de `tests/README.md`, que es su zona | `tests/math/`, `tests/README.md` | Baja — decidir en Chat 5 |
 | D22 | **Invariante que no está en ADR-007 y conviene que esté:** a lo sumo un paso `final` por procedimiento, y es el último. Apareció al encadenar pasos en el Paso 2c-2: cuando una función hereda el procedimiento de una auxiliar y agrega su propio cierre, el `final` heredado deja de ser final, y sin degradarlo la interfaz no puede distinguir cuál es la conclusión. El motor ya lo cumple —`adjugate` y `conditionNumber` degradan a `info` lo que heredan— y `steps-contract.test.js` lo verifica, pero es una regla de contrato que decidió el Chat 2 sobre la marcha. **Resuelta por el Chat 1 el 2026-09-18: incorporada al contrato** como segunda enmienda de ADR-007 §3.2, con "a lo sumo uno" y no "exactamente uno" —`rank`, `rowEchelon`, `reducedRowEchelon` y `luDecomposition` no cierran y no tienen por qué—, y agregada como punto 5 de §3.6 | `docs/adr/ADR-007` | ~~Media~~ **cerrada** |
 | D23 | La prueba de contrato fija un tope de 60 pasos por procedimiento como cota de legibilidad. El número es una elección del Chat 2, no una decisión de producto: sale de que `cofactorMatrix` acotada a 6×6 da 38 pasos y de que algo del orden de dos pantallas parece el límite de lo que alguien lee. Si el Chat 3 o el Chat 4 tienen un criterio mejor desde la interfaz —por ejemplo, paginar el panel en vez de acotar el motor—, este número debería salir de ahí y no de acá. **Ruling del Chat 1 el 2026-09-18:** el 60 queda como está mientras tanto —es una cota razonable y no vale la pena discutirla en abstracto—, pero **no se promueve a regla del contrato ni entra a ADR-007**: es una decisión de producto y se decide cuando el Chat 3 arme el panel de procedimiento con datos reales, no antes. Lo que sí se corrige ahora es D24, que es otra cosa | `tests/math/steps-contract.test.js` | Baja — revisar con Chat 3 en el Paso 3c/4 |
-| D24 | **La cota de legibilidad no está donde dice estar.** La prueba de contrato afirma que "ningún procedimiento se pasa de largo", pero recorre su tabla con matrices de 2×2 y 3×3 para todo salvo `cofactorMatrix`, así que verifica la cota únicamente para la función que Chat 2 acotó. Medido sobre el motor tal como está, con el tamaño que el selector permite (`MAX_SIZE = 15`): `inverse` da 61 pasos en 8×8 y **218 en 15×15**; `adjugate`, 219; `solveSystem`, 218; `reducedRowEchelon`, 217; `conditionNumber`, 222; `determinantByGauss`, 103. Las seis son operaciones que la calculadora ofrece hoy. No es una regresión del Paso 2c-2 —el crecimiento de `inverse` y `rref` es anterior— sino una prueba que asegura una propiedad que el motor no tiene. Dos cosas a resolver por separado: **(a)** la prueba debe correr la cota contra 15×15 en las funciones que crecen con el tamaño, no contra 3×3, y **(b)** una vez que falle, la decisión de qué hacer con esos 218 pasos —acotar el motor, paginar el panel, o mostrarlos— es la de D23 y sale del Chat 3 | `tests/math/steps-contract.test.js`, `shared/math/algebra/inverse.js`, `gauss.js` | Media — (a) Chat 2, (b) con D23 |
+| D24 | **La cota de legibilidad no está donde dice estar.** La prueba de contrato afirma que "ningún procedimiento se pasa de largo", pero recorre su tabla con matrices de 2×2 y 3×3 para todo salvo `cofactorMatrix`, así que verifica la cota únicamente para la función que Chat 2 acotó. Medido sobre el motor tal como está, con el tamaño que el selector permite (`MAX_SIZE = 15`): `inverse` da 61 pasos en 8×8 y **218 en 15×15**; `adjugate`, 219; `solveSystem`, 218; `reducedRowEchelon`, 217; `conditionNumber`, 222; `determinantByGauss`, 103. Las seis son operaciones que la calculadora ofrece hoy. No es una regresión del Paso 2c-2 —el crecimiento de `inverse` y `rref` es anterior— sino una prueba que asegura una propiedad que el motor no tiene. Dos cosas a resolver por separado: **(a)** la prueba debe correr la cota contra 15×15 en las funciones que crecen con el tamaño, no contra 3×3, y **(b)** una vez que falle, la decisión de qué hacer con esos 218 pasos —acotar el motor, paginar el panel, o mostrarlos— es la de D23 y sale del Chat 3. **(a) hecha el 2026-09-23 (Chat 2):** la tabla de `steps-contract.test.js` corre ahora en 15×15 toda función cuyo procedimiento crece con el tamaño, y `determinantByCofactors` en 7×7, que es su máximo alcanzable. **La prueba falla, y tiene que seguir fallando hasta que se resuelva (b)** — no se acotó ninguna función para que pase. Medición al 2026-09-23, con matriz diagonal dominante de orden 15:
+
+| Función | Pasos | Celdas de snapshot | JSON |
+|---|---|---|---|
+| `conditionNumber` | 224 | 99 225 | 1.13 MB |
+| `adjugate` | 221 | 98 775 | 1.13 MB |
+| `inverse` | 220 | 98 550 | 1.12 MB |
+| `solveSystem` | 220 | 52 560 | 0.50 MB |
+| `reducedRowEchelon` | 219 | 49 275 | 0.45 MB |
+| `luDecomposition` | 105 | 23 625 | 0.28 MB |
+| `determinantByGauss` | 103 | 22 950 | 0.28 MB |
+| `rowEchelon` / `rank` | 102 | 22 950 | 0.28 MB |
+
+**El número que importa no es el de pasos sino el de celdas:** un procedimiento de `inverse` en 15×15 son 1.12 MB de JSON, casi todo `snapshot`. Los conteos difieren en ±2 pasos según la matriz (el Chat 1 midió 218 donde acá dan 220): depende de cuántos intercambios de fila pida el pivoteo | `tests/math/steps-contract.test.js`, `shared/math/algebra/inverse.js`, `gauss.js` | **(a) resuelta el 2026-09-23** — (b) abierta, con D23 |
 | D19 | `css/algebra.css` encadena `tokens.css`, `base.css` y `components.css` con `@import`, que los descarga en serie. Se hizo así porque `modules/algebra/index.html` enlaza una sola hoja y ese archivo es del Chat 3: evitar un pedido de cambio de HTML por algo que el CSS resuelve solo. Cuando el Paso 4 arme la cáscara compartida, el HTML debería enlazar las cuatro hojas en paralelo y estos `@import` desaparecer | `css/algebra.css`, `modules/*/index.html` | Baja — Paso 4 |
 | D20 | En pantallas angostas el menú lateral no puede ser un cajón superpuesto. El único estado que le pone el JavaScript es `.is-hidden` (`app.js:408`) y su ausencia significa "visible", así que un cajón arrancaría abierto tapando la pantalla en cada carga. Queda resuelto como tira desplegable en el flujo, con altura acotada y desplazamiento propio: utilizable, pero come 15 rem de alto arriba del contenido. Un cajón de verdad necesita un segundo estado del Chat 3 (`.sidebar.is-open`, cerrado por defecto bajo cierto ancho). **Evidencia:** `components.css` §13 y `app.js:408`. **Confirmada por el Chat 1 el 2026-09-18:** el segundo estado se agrega en el Paso 4, junto con la cáscara, no antes — el cajón pertenece a la navegación de la plataforma y hacerlo ahora dentro de una calculadora lo ataría al módulo equivocado | `modules/algebra/app.js`, `css/components.css` | Media — Paso 4 |
 | D21 | No hay interruptor de tema. Los temas funcionan por `prefers-color-scheme` y `tokens.css` deja listos los ganchos `[data-theme="light"]` y `[data-theme="dark"]` en `<html>`, pero nada los escribe. Quien tenga el sistema operativo en claro no puede ver el tema oscuro y viceversa. El control es zona del Chat 3 y pertenece a la cáscara del Paso 4, no a esta calculadora | `js/`, `index.html` | Baja — Paso 4 |
@@ -365,6 +379,62 @@ más trabajo.
 ---
 
 ## 6. Bitácora
+
+### 2026-09-23 — D24 (a): la cota se mide donde puede fallar · Chat 2
+
+**Resumen.** Sesión corta, un solo archivo. La tabla de
+`tests/math/steps-contract.test.js` corre ahora al tamaño máximo que permite el
+selector de la calculadora: once invocaciones nuevas en 15×15, más
+`determinantByCofactors` en 7×7, que es su máximo alcanzable porque corta por
+costo factorial arriba de eso.
+
+**La suite queda con una prueba en rojo, a propósito.** 328 de 329. La que falla
+es "ningún procedimiento se pasa de largo para el usuario", y falla porque el
+motor efectivamente se pasa: nueve funciones superan el límite de 60 pasos en
+15×15. No se acotó ninguna para que pase — eso es la parte (b) de D24, que es
+una decisión de producto y sale del Chat 3 junto con D23.
+
+**Arquitectura.** Ninguna decisión nueva; es una corrección de prueba. Dos
+detalles de cómo quedó escrita:
+
+1. *La prueba junta todos los excesos antes de fallar, en vez de cortar en el
+   primero.* Con la aserción por caso, el mensaje habría dicho "adjugate 15x15:
+   221 pasos" y nada más, y quien tiene que decidir entre acotar el motor o
+   paginar el panel necesita la lista entera. Ahora el fallo imprime las nueve
+   con sus números.
+2. *Se informan pasos **y** celdas de snapshot.* El conteo de pasos subestima el
+   problema: `inverse` en 15×15 son 220 pasos pero 98 550 celdas, o sea 1.12 MB
+   de JSON, y casi todo es `snapshot`. Si la decisión de (b) fuera paginar el
+   panel, paginar no achica el payload — llega entero igual. Es el dato que
+   cambia la decisión y no estaba medido.
+
+**Compatibilidad.** No se tocó una línea del motor. La API pública no cambió, el
+resto de la suite sigue en verde y las otras ocho pruebas del contrato —forma
+del retorno, `steps` siempre arreglo, vocabulario de `type`, un solo `final`—
+ahora se verifican **también** en 15×15 y pasan. Es un dato útil que salió de
+paso: las invariantes de forma se sostienen al tamaño máximo; la única que no se
+sostiene es la de legibilidad, que es justamente la que se estaba midiendo mal.
+
+**Verificación.**
+
+- Línea de base: 329 en verde sobre `25dd818`. Al terminar: 328 en verde y 1 en
+  rojo, la esperada.
+- La matriz de 15×15 es diagonal dominante para que ninguna función se caiga por
+  singularidad; se verificó que `inverse` la acepta antes de usarla en la tabla.
+- El costo de correr la tabla al máximo se midió antes de agregarla: 15 ms una
+  pasada completa de las nueve funciones grandes, ~90 ms sumando las seis
+  pruebas que recorren la tabla. La suite pasó de 0.5 s a 0.6 s.
+- Los conteos difieren en ±2 respecto de los que midió el Chat 1 (218 contra 220
+  en `inverse`, por ejemplo). No es discrepancia: el conteo depende de cuántos
+  intercambios de fila pida el pivoteo parcial, y eso cambia con la matriz. El
+  orden de magnitud, que es lo que decide, es el mismo.
+
+**Próximos pasos.** La parte B del Paso 2c-2, que arranca por la decisión de
+cuántos pasos emite un método iterativo. Las opciones y sus costos medidos están
+en la conversación de cierre de esta sesión; el resumen es que Jacobi converge
+en 297 rotaciones en 15×15 —0.75 MB si se snapshotea cada una— y que
+`eigenvaluesQR` corre 500 iteraciones fijas sin criterio de convergencia, así
+que un paso por iteración no es viable en ninguno de los dos.
 
 ### 2026-09-18 — Verificación del Paso 2c-2 parte A y enmienda de ADR-007 · Chat 1
 

@@ -32,6 +32,9 @@
  * Modificado: 2026-09-18 — Chat 2 (Paso 2c-2, parte A). Vocabulario a diez
  *   tipos según la enmienda de ADR-007 §3.3 (D17), y `esperaPasos` al día con
  *   las funciones que ya registran procedimiento.
+ * Modificado: 2026-09-23 — Chat 2 (D24). La tabla corre ahora también al
+ *   tamaño máximo del selector (15x15), que es donde la cota de legibilidad
+ *   puede fallar. **Falla a propósito:** ver el comentario de esa prueba.
  * Dependencias: shared/math/index.js, tests/assert.js
  * ---------------------------------------------------------------------------
  */
@@ -76,13 +79,34 @@ const DEFINIDA_POSITIVA = new Matrix([[4, 2], [2, 3]]);
 const NO_SIMETRICA_3X3 = new Matrix([[3, 7, 2], [0, 5, 9], [0, 0, -1]]);
 
 /**
- * Del tamaño máximo que permite el selector de la calculadora (15x15). Está
- * acá para que la cota de legibilidad se pruebe contra el caso que la motivó,
- * y no solo contra matrices chicas donde nunca se dispara.
+ * Matriz cuadrada invertible de orden `n`, diagonal dominante para que ninguna
+ * función se caiga por singularidad.
+ *
+ * @param {number} n
+ * @returns {Matrix}
  */
-const A15 = new Matrix(
-  Array.from({ length: 15 }, (_, i) => Array.from({ length: 15 }, (_, j) => (i === j ? 17 : (i + j) % 4))),
-);
+function cuadrada(n) {
+  return new Matrix(
+    Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 17 : (i + j) % 4))),
+  );
+}
+
+/**
+ * Del tamaño máximo que permite el selector de la calculadora (`MAX_SIZE = 15`
+ * en `modules/algebra/app.js`).
+ *
+ * Por qué importa que esté: la cota de legibilidad se verifica recorriendo
+ * CASOS, y mientras la tabla tuvo solo matrices de 2x2 y 3x3, la prueba decía
+ * "ningún procedimiento se pasa de largo" habiendo medido únicamente
+ * procedimientos de diez pasos. Es la deuda D24: una prueba que aseguraba una
+ * propiedad que el motor no tiene, porque nunca la puso a prueba donde podía
+ * fallar. Toda función cuyo procedimiento crece con el tamaño entra a la tabla
+ * también en 15x15.
+ */
+const A15 = cuadrada(15);
+
+/** Términos independientes para el sistema de 15 incógnitas. */
+const B15 = Array.from({ length: 15 }, (_, i) => i + 1);
 
 /**
  * Todas las funciones alcanzadas por ADR-007, con una invocación válida cada
@@ -105,7 +129,25 @@ const CASOS = [
   { nombre: 'determinantByCofactors', ejecutar: () => determinantByCofactors(A3), esperaPasos: true },
   { nombre: 'cofactorMatrix', ejecutar: () => cofactorMatrix(A3), esperaPasos: true },
   { nombre: 'adjugate', ejecutar: () => adjugate(A3), esperaPasos: true },
+
+  // ---------------------------------------------------------------------
+  // Las mismas funciones al tamaño máximo del selector. Sin esto, la cota de
+  // legibilidad solo se verificaba en `cofactorMatrix`, que es justamente la
+  // única que está acotada (D24).
+  // ---------------------------------------------------------------------
+  { nombre: 'rowEchelon 15x15', ejecutar: () => rowEchelon(A15), esperaPasos: true },
+  { nombre: 'reducedRowEchelon 15x15', ejecutar: () => reducedRowEchelon(A15), esperaPasos: true },
+  { nombre: 'rank 15x15', ejecutar: () => rank(A15), esperaPasos: true },
+  { nombre: 'solveSystem 15x15', ejecutar: () => solveSystem(A15, B15), esperaPasos: true },
+  { nombre: 'determinantByGauss 15x15', ejecutar: () => determinantByGauss(A15), esperaPasos: true },
+  { nombre: 'inverse 15x15', ejecutar: () => inverse(A15), esperaPasos: true },
+  { nombre: 'luDecomposition 15x15', ejecutar: () => luDecomposition(A15), esperaPasos: true },
+  { nombre: 'conditionNumber 15x15', ejecutar: () => conditionNumber(A15), esperaPasos: true },
+  { nombre: 'adjugate 15x15', ejecutar: () => adjugate(A15), esperaPasos: true },
   { nombre: 'cofactorMatrix 15x15', ejecutar: () => cofactorMatrix(A15), esperaPasos: true },
+  // `determinantByCofactors` corta en n > 7 por costo factorial, así que 7x7 es
+  // su tamaño máximo alcanzable, no 15x15.
+  { nombre: 'determinantByCofactors 7x7', ejecutar: () => determinantByCofactors(cuadrada(7)), esperaPasos: true },
   // Todavía con steps: []; su contenido es el Paso 2c-2, parte B.
   { nombre: 'qrDecomposition', ejecutar: () => qrDecomposition(A3), esperaPasos: false },
   { nombre: 'choleskyDecomposition', ejecutar: () => choleskyDecomposition(DEFINIDA_POSITIVA), esperaPasos: false },
@@ -277,19 +319,36 @@ export const tests = [
   {
     name: 'ningún procedimiento se pasa de largo para el usuario',
     fn: () => {
-      // Cota de legibilidad, no de corrección. `cofactorMatrix` emite n² pasos
-      // y el selector de la calculadora llega a 15x15: sin cota serían 225
-      // pasos con menores de 196 celdas, que no es un procedimiento sino un
-      // volcado. Si una función nueva se pasa de acá, hay que acotarla antes
-      // de que llegue a la interfaz.
+      // Cota de legibilidad, no de corrección: un procedimiento correcto de
+      // 220 pasos sigue siendo correcto. Lo que mide esta prueba es si es
+      // mostrable.
+      //
+      // El límite de 60 es una elección del Chat 2, no una decisión de
+      // producto (D23). Lo que NO es una elección es dónde se mide: mientras
+      // la tabla tuvo solo matrices chicas, esta prueba pasaba sin haber
+      // ejercitado nunca el caso que la motivaba (D24).
+      //
+      // Se juntan todos los excesos antes de fallar, en vez de cortar en el
+      // primero: la decisión de qué hacer con ellos —acotar el motor, paginar
+      // el panel, o mostrarlos— necesita la lista completa con sus números, no
+      // el primer nombre alfabético.
       const LIMITE = 60;
+      const excesos = [];
       CASOS.forEach(({ nombre, ejecutar }) => {
         const { steps } = ejecutar();
-        assertTrue(
-          steps.length <= LIMITE,
-          `${nombre}: ${steps.length} pasos, por encima del límite de ${LIMITE}.`,
-        );
+        if (steps.length > LIMITE) {
+          const celdas = steps.reduce(
+            (total, paso) => total + (paso.snapshot ? paso.snapshot.length * paso.snapshot[0].length : 0),
+            0,
+          );
+          excesos.push(`${nombre}: ${steps.length} pasos, ${celdas} celdas de snapshot`);
+        }
       });
+      assertTrue(
+        excesos.length === 0,
+        `${excesos.length} procedimiento(s) por encima del límite de ${LIMITE} pasos:\n      `
+          + `${excesos.join('\n      ')}`,
+      );
     },
   },
   {
