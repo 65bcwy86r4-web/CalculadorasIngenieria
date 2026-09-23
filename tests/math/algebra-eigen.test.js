@@ -565,4 +565,117 @@ export const tests = [
       );
     },
   },
+
+  /* ------------------ procedimiento (Paso 2c-2, parte B) ------------------ */
+  {
+    name: 'eigenvalues2x2 desarrolla el polinomio característico en tres pasos',
+    fn: () => {
+      // No es iterativa: es la fórmula cuadrática. El procedimiento es fijo.
+      const { steps } = eigenvalues2x2(new Matrix([[0, 1], [1, 0]]));
+      assertEqual(steps.length, 3, 'Coeficientes, discriminante y raíces.');
+      assertTrue(steps[0].text.includes('tr(A)'), 'El primero trae traza y determinante.');
+      assertTrue(steps[1].text.includes('Δ'), 'El segundo, el discriminante.');
+      assertEqual(steps[2].type, 'final', 'El tercero cierra con las raíces.');
+    },
+  },
+  {
+    name: 'el desarrollo del 2x2 distingue las tres formas del discriminante',
+    fn: () => {
+      const dobles = eigenvalues2x2(new Matrix([[5, 1], [0, 5]])).steps;
+      assertTrue(dobles[2].text.includes('doble'), 'Δ = 0 debería anunciarse como raíz doble.');
+      const complejas = eigenvalues2x2(new Matrix([[0, -1], [1, 0]])).steps;
+      assertTrue(complejas[2].text.includes('complejo'), 'Δ < 0 debería anunciar el par complejo.');
+      const reales = eigenvalues2x2(new Matrix([[0, 1], [1, 0]])).steps;
+      assertTrue(reales[2].text.includes('λ₁'), 'Δ > 0 debería dar las dos raíces.');
+    },
+  },
+  {
+    name: 'eigenvaluesQR registra hitos de convergencia, no iteraciones',
+    fn: () => {
+      // 500 iteraciones darían 500 pasos, 499 indistinguibles. Se registra la
+      // primera y después solo cuando la norma subdiagonal cae un orden de
+      // magnitud, así que la cantidad depende de los dígitos de convergencia y
+      // no del tamaño ni de la cantidad de iteraciones.
+      const { steps } = eigenvaluesQR(new Matrix([[4, 1, 0], [1, 4, 1], [0, 1, 4]]));
+      assertTrue(steps.length < 20, `Debería ser del orden de una docena de pasos (son ${steps.length}).`);
+      assertTrue(steps.length > 3, 'Y más que solo apertura, primera iteración y cierre.');
+      const iteraciones = steps.filter((paso) => paso.type === 'iterate');
+      assertTrue(iteraciones.length >= 2, 'Al menos la primera y un hito.');
+      assertTrue(iteraciones[0].text.includes('Iteración 1'), 'La primera iteración se registra siempre.');
+    },
+  },
+  {
+    name: 'la cantidad de pasos del QR no crece con el tamaño de la matriz',
+    fn: () => {
+      const simetrica = (n) => new Matrix(
+        Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 4 + i : 1 / (1 + Math.abs(i - j))))),
+      );
+      const chica = eigenvaluesQR(simetrica(3)).steps.length;
+      const grande = eigenvaluesQR(simetrica(15)).steps.length;
+      assertTrue(grande < 25, `15x15 debería seguir siendo legible (son ${grande} pasos).`);
+      assertTrue(
+        Math.abs(grande - chica) < 15,
+        `La diferencia entre 3x3 (${chica}) y 15x15 (${grande}) debería ser chica: los pasos siguen a la convergencia, no al tamaño.`,
+      );
+    },
+  },
+  {
+    name: 'cuando el QR no converge, el cierre lo dice',
+    fn: () => {
+      // Autovalores de igual módulo: la iteración no triangulariza nunca (D13).
+      // El procedimiento honesto es apertura, primera iteración y un cierre que
+      // lo admita — no doce hitos inventados.
+      const { steps, hasComplexHint } = eigenvaluesQR(new Matrix([[0, 50], [50, 0]]));
+      assertTrue(hasComplexHint, 'Precondición: este caso no converge.');
+      assertEqual(steps.length, 3, 'Sin hitos: apertura, primera iteración y cierre.');
+      const cierre = steps[steps.length - 1];
+      assertEqual(cierre.type, 'final', 'El último es el cierre.');
+      assertTrue(cierre.text.includes('no triangularizó'), 'Y admite que no convergió.');
+      assertTrue(cierre.text.includes('eigenvalues'), 'Y deriva a la entrada que sí resuelve el caso.');
+    },
+  },
+  {
+    name: 'jacobiEigenDecomposition registra hitos y no una rotación por paso',
+    fn: () => {
+      const simetrica = (n) => new Matrix(
+        Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 4 + i : 1 / (1 + Math.abs(i - j))))),
+      );
+      const salida = simetrica(15);
+      const { steps, rotations } = jacobiEigenDecomposition(salida);
+      assertTrue(rotations > 200, `Precondición: una 15x15 pide muchas rotaciones (son ${rotations}).`);
+      assertTrue(steps.length < 20, `Y el procedimiento sigue en pocos pasos (son ${steps.length}).`);
+      assertTrue(
+        steps.some((paso) => paso.type === 'rotate' && paso.text.includes('plano')),
+        'Cada hito debería decir en qué plano rota.',
+      );
+    },
+  },
+  {
+    name: 'el cierre de Jacobi trae los autovalores que devuelve',
+    fn: () => {
+      const { steps, values } = jacobiEigenDecomposition(new Matrix([[2, 1], [1, 2]]));
+      const cierre = steps[steps.length - 1];
+      assertEqual(cierre.type, 'final', 'El último paso es el cierre.');
+      values.forEach((valor) => {
+        assertTrue(cierre.text.includes(valor.toFixed(4)), `El cierre debería traer ${valor.toFixed(4)}.`);
+      });
+    },
+  },
+  {
+    name: 'eigenvalues hereda el procedimiento del método que despachó',
+    fn: () => {
+      // No inventa pasos propios: lo que hay que mostrar es el desarrollo del
+      // algoritmo que efectivamente corrió.
+      const porJacobi = eigenvalues(new Matrix([[2, 1], [1, 2]]));
+      assertEqual(porJacobi.method, 'jacobi', 'Precondición: despacha a Jacobi.');
+      assertVectorClose(
+        porJacobi.steps.map((paso) => paso.type).length ? [porJacobi.steps.length] : [0],
+        [jacobiEigenDecomposition(new Matrix([[2, 1], [1, 2]])).steps.length],
+        'Debería traer los mismos pasos que el método.',
+      );
+      const porFormula = eigenvalues(new Matrix([[3, 2], [1, 4]]));
+      assertEqual(porFormula.method, 'closed-form-2x2', 'Precondición: despacha a la forma cerrada.');
+      assertTrue(porFormula.steps.length > 0, 'Y trae su desarrollo.');
+    },
+  },
 ];

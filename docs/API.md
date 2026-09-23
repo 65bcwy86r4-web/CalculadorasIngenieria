@@ -58,9 +58,19 @@ Muchas funciones devuelven, además del resultado, el **procedimiento paso a pas
 
 Son **diez**. `unique`, `infinite` e `incompatible` **no son tipos de paso**: son los valores del discriminante que devuelve `solveSystem`, que desde la enmienda de ADR-007 §3.3 se llama `classification` precisamente para que no se confundan con `step.type`.
 
-**Estado actual.** Con procedimiento escrito: `rowEchelon`, `reducedRowEchelon`, `rank`, `solveSystem`, `determinantByGauss`, `determinantByCofactors`, `inverse`, `cofactorMatrix`, `adjugate`, `conditionNumber` y `luDecomposition`.
+**Estado actual.** Con procedimiento escrito: `rowEchelon`, `reducedRowEchelon`, `rank`, `solveSystem`, `determinantByGauss`, `determinantByCofactors`, `inverse`, `cofactorMatrix`, `adjugate`, `conditionNumber`, `luDecomposition`, `qrDecomposition`, `choleskyDecomposition`, `eigenvalues2x2`, `eigenvaluesQR`, `jacobiEigenDecomposition` y `eigenvalues` (que hereda del método que despacha).
 
-Todavía con `steps: []`, a la espera del Paso 2c-2 parte B: `qrDecomposition`, `choleskyDecomposition`, `eigenvalues`, `eigenvaluesQR`, `jacobiEigenDecomposition`, `eigenvalues2x2`, `eigenvectors` y `diagonalize`. Un `steps: []` se renderiza como "esta operación todavía no muestra el desarrollo", que es honesto y no obliga a esperar.
+Todavía con `steps: []`: `eigenvectors` y `diagonalize`. Un `steps: []` se renderiza como "esta operación todavía no muestra el desarrollo", que es honesto y no obliga a esperar.
+
+**Cuántos pasos emite cada familia.** El procedimiento tiene que ser legible, y eso no sale solo: `choleskyDecomposition` elemento por elemento daría 120 pasos en 15×15, y `eigenvaluesQR` una iteración por paso daría 500 siempre. La regla es que **el conteo no dependa del tamaño de la matriz**:
+
+| Si el trabajo es… | Se emite | Pasos |
+|---|---|---|
+| `O(n)` unidades (columnas de QR) | uno por unidad | `n` |
+| `O(n²)` unidades (elementos de Cholesky, cofactores) | uno por **fila**, o se acota | `n` |
+| iterativo (QR de autovalores, Jacobi) | la primera iteración y un **hito** por cada orden de magnitud que cae el residuo | ~`log₁₀(residuo₀ / tolerancia)` |
+
+En el caso iterativo el conteo queda atado a `DEFAULT_TOLERANCE`, no a la cantidad de iteraciones: una docena de pasos en el peor caso, y **cero hitos cuando el método no converge**, que es lo honesto.
 
 **Herencia de pasos.** Algunas funciones encadenan el procedimiento de lo que calculan internamente: `adjugate` el de la matriz de cofactores (o el de la inversa, si usó `det(A)·A⁻¹`), `conditionNumber` el de la inversión, `eigenvalues` el del método que despachó y `diagonalize` el de autovalores y autovectores. Mostrar el procedimiento que efectivamente corrió es lo correcto, pero **heredar no alcanza si el resultado no explica la operación que se pidió**: cada una agrega sus propios pasos de cierre. Es la regla que dejó la enmienda del 18/09 a ADR-007 §4.
 
@@ -218,12 +228,12 @@ Transpuesta de la matriz de cofactores. Para n > 6 usa `det(A)·A⁻¹` internam
 
 ### `qrDecomposition(matrix)`
 `A = Q·R` vía Gram-Schmidt clásico.
-**Retorna:** `{ Q: Matrix, R: Matrix, steps: Array }` — `steps` vacío por ahora
+**Retorna:** `{ Q: Matrix, R: Matrix, steps: Array }` — un paso por columna ortonormalizada, con la `Q` parcial como `snapshot`
 **Ejemplo:** `qrDecomposition(new Matrix([[1,1],[0,1],[1,0]]))`
 
 ### `choleskyDecomposition(matrix, tolerance = 1e-10)`
 `A = L·Lᵀ`, solo para matrices simétricas definidas positivas.
-**Retorna:** `{ L: Matrix, Lt: Matrix, steps: Array }` — `steps` vacío por ahora
+**Retorna:** `{ L: Matrix, Lt: Matrix, steps: Array }` — un paso por **fila** de `L`, no por elemento: por elemento serían `n(n+1)/2` pasos, 120 en 15×15
 **Excepciones:** `DimensionError` si no es cuadrada o no simétrica; `MathError` (`NOT_POSITIVE_DEFINITE`) si no es definida positiva.
 **Ejemplo:** `choleskyDecomposition(new Matrix([[4,2],[2,3]]))`
 
@@ -254,7 +264,7 @@ Si estás eligiendo a ciegas, es `eigenvalues`.
 | general | QR iterativo | `'qr'` |
 
 `method` dice cuál se usó, que es lo que una calculadora necesita para explicar el procedimiento. `hasComplexHint` avisa que el espectro puede tener pares complejos conjugados, que el motor no representa todavía; para una matriz simétrica es siempre `false`, por el teorema espectral. `iterations` solo afecta al camino QR.
-**Retorna:** `{ values: number[], method: string, hasComplexHint: boolean, steps: Array }` — `steps` son los del método que se despachó
+**Retorna:** `{ values: number[], method: string, hasComplexHint: boolean, steps: Array }` — `steps` son los del método que se despachó, no unos propios
 **Excepciones:** `DimensionError` si no es cuadrada.
 **Ejemplo:** `eigenvalues(new Matrix([[2,1],[1,2]])).values // [3, 1]`
 **Ejemplo:** `eigenvalues(new Matrix([[0,50],[50,0]])) // { values: [50, -50], method: 'jacobi', hasComplexHint: false }`
@@ -265,20 +275,20 @@ Autovalores por el **algoritmo QR iterativo, siempre y sin despacho**: `Aₖ = Q
 > **Limitación del método, no defecto de la función.** La iteración sin desplazamiento **no converge** cuando dos autovalores tienen el mismo módulo (`±λ`, o un par complejo conjugado): queda un bloque 2×2 sin reducir, la diagonal no son los autovalores y `hasComplexHint` se pone en `true`. Si lo que querés son los autovalores y no este algoritmo, usá **`eigenvalues`**, que despacha a Jacobi en el caso simétrico. Mejorar este camino con desplazamientos de Wilkinson es la deuda D13.
 
 `matrixT` es la iterada `Aₖ` al terminar. `hasComplexHint` acá significa "la iteración no triangularizó", que puede deberse tanto a autovalores complejos como a autovalores reales de igual módulo.
-**Retorna:** `{ values: number[], matrixT: Matrix, hasComplexHint: boolean, steps: Array }` — `steps` vacío por ahora
+**Retorna:** `{ values: number[], matrixT: Matrix, hasComplexHint: boolean, steps: Array }` — apertura, la primera iteración, un hito por cada orden de magnitud que cae la norma subdiagonal, y el cierre. Cuando no converge no hay hitos y el cierre lo dice
 **Excepciones:** `DimensionError` si no es cuadrada.
 **Ejemplo:** `eigenvaluesQR(new Matrix([[2,1],[1,2]])).values // [3, 1]`
 **Ejemplo:** `eigenvaluesQR(new Matrix([[0,50],[50,0]])) // { values: [0, 0], hasComplexHint: true } — no convergió; usar eigenvalues`
 
 ### `jacobiEigenDecomposition(matrix, tolerance = 1e-10, maxRotations = 1000)`
 Autovalores **y** autovectores de una matriz simétrica real por rotaciones de Jacobi. Converge siempre para matrices simétricas, incluso con autovalores repetidos o de igual módulo. Los autovectores salen ortonormales y en el mismo orden que los autovalores.
-**Retorna:** `{ values: number[], vectors: number[][], rotations: number, converged: boolean, steps: Array }` — `steps` vacío por ahora
+**Retorna:** `{ values: number[], vectors: number[][], rotations: number, converged: boolean, steps: Array }` — apertura, la primera rotación, un hito por cada orden de magnitud que cae el mayor elemento fuera de la diagonal, y el cierre. Una 15×15 pide ~300 rotaciones y emite ~12 pasos
 **Excepciones:** `DimensionError` si no es cuadrada; `MathError` (`NOT_SYMMETRIC`) si no es simétrica.
 **Ejemplo:** `jacobiEigenDecomposition(new Matrix([[2,1],[1,2]])).values // [3, 1]`
 
 ### `eigenvalues2x2(matrix, tolerance = 1e-10)`
 Autovalores de una matriz 2×2 por su polinomio característico `λ² − tr(A)·λ + det(A) = 0`. Exacto, no iterativo. Si las raíces son complejas conjugadas, `values` viene vacío y el par se informa por partes en `realPart` e `imaginaryPart` (el motor no representa números complejos todavía).
-**Retorna:** `{ values: number[], hasComplexPair: boolean, realPart: number, imaginaryPart: number, steps: Array }` — `steps` vacío por ahora
+**Retorna:** `{ values: number[], hasComplexPair: boolean, realPart: number, imaginaryPart: number, steps: Array }` — tres pasos fijos: coeficientes del polinomio característico, discriminante y raíces
 **Excepciones:** `DimensionError` si no es cuadrada; `MathError` (`NOT_2X2`) si no es de 2×2.
 **Ejemplo:** `eigenvalues2x2(new Matrix([[0,1],[1,0]])).values // [1, -1]`
 **Ejemplo:** `eigenvalues2x2(new Matrix([[0,-1],[1,0]])).imaginaryPart // 1 (autovalores ±i)`

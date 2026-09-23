@@ -108,6 +108,16 @@ const A15 = cuadrada(15);
 /** Términos independientes para el sistema de 15 incógnitas. */
 const B15 = Array.from({ length: 15 }, (_, i) => i + 1);
 
+/** Simétrica de orden 15, para los métodos de autovalores al máximo. */
+const SIMETRICA_15 = new Matrix(
+  Array.from({ length: 15 }, (_, i) => Array.from({ length: 15 }, (_, j) => (i === j ? 4 + i : 1 / (1 + Math.abs(i - j))))),
+);
+
+/** Simétrica definida positiva de orden 15, para Cholesky al máximo. */
+const DEFINIDA_POSITIVA_15 = SIMETRICA_15
+  .multiply(SIMETRICA_15.transpose())
+  .add(Matrix.identity(15).scalarMultiply(15));
+
 /**
  * Todas las funciones alcanzadas por ADR-007, con una invocación válida cada
  * una. `esperaPasos` marca las que ya registran procedimiento hoy: para esas
@@ -148,16 +158,20 @@ const CASOS = [
   // `determinantByCofactors` corta en n > 7 por costo factorial, así que 7x7 es
   // su tamaño máximo alcanzable, no 15x15.
   { nombre: 'determinantByCofactors 7x7', ejecutar: () => determinantByCofactors(cuadrada(7)), esperaPasos: true },
-  // Todavía con steps: []; su contenido es el Paso 2c-2, parte B.
-  { nombre: 'qrDecomposition', ejecutar: () => qrDecomposition(A3), esperaPasos: false },
-  { nombre: 'choleskyDecomposition', ejecutar: () => choleskyDecomposition(DEFINIDA_POSITIVA), esperaPasos: false },
-  { nombre: 'eigenvalues (jacobi)', ejecutar: () => eigenvalues(SIMETRICA), esperaPasos: false },
-  { nombre: 'eigenvalues (2x2)', ejecutar: () => eigenvalues(new Matrix([[3, 2], [1, 4]])), esperaPasos: false },
-  { nombre: 'eigenvalues (qr)', ejecutar: () => eigenvalues(NO_SIMETRICA_3X3), esperaPasos: false },
+  { nombre: 'qrDecomposition 15x15', ejecutar: () => qrDecomposition(A15), esperaPasos: true },
+  { nombre: 'choleskyDecomposition 15x15', ejecutar: () => choleskyDecomposition(DEFINIDA_POSITIVA_15), esperaPasos: true },
+  { nombre: 'eigenvaluesQR 15x15', ejecutar: () => eigenvaluesQR(SIMETRICA_15), esperaPasos: true },
+  { nombre: 'jacobiEigenDecomposition 15x15', ejecutar: () => jacobiEigenDecomposition(SIMETRICA_15), esperaPasos: true },
+  // Con procedimiento escrito en el Paso 2c-2, parte B.
+  { nombre: 'qrDecomposition', ejecutar: () => qrDecomposition(A3), esperaPasos: true },
+  { nombre: 'choleskyDecomposition', ejecutar: () => choleskyDecomposition(DEFINIDA_POSITIVA), esperaPasos: true },
+  { nombre: 'eigenvalues (jacobi)', ejecutar: () => eigenvalues(SIMETRICA), esperaPasos: true },
+  { nombre: 'eigenvalues (2x2)', ejecutar: () => eigenvalues(new Matrix([[3, 2], [1, 4]])), esperaPasos: true },
+  { nombre: 'eigenvalues (qr)', ejecutar: () => eigenvalues(NO_SIMETRICA_3X3), esperaPasos: true },
   { nombre: 'eigenvalues (trivial)', ejecutar: () => eigenvalues(new Matrix([[6]])), esperaPasos: false },
-  { nombre: 'eigenvaluesQR', ejecutar: () => eigenvaluesQR(SIMETRICA), esperaPasos: false },
-  { nombre: 'jacobiEigenDecomposition', ejecutar: () => jacobiEigenDecomposition(SIMETRICA), esperaPasos: false },
-  { nombre: 'eigenvalues2x2', ejecutar: () => eigenvalues2x2(SIMETRICA), esperaPasos: false },
+  { nombre: 'eigenvaluesQR', ejecutar: () => eigenvaluesQR(SIMETRICA), esperaPasos: true },
+  { nombre: 'jacobiEigenDecomposition', ejecutar: () => jacobiEigenDecomposition(SIMETRICA), esperaPasos: true },
+  { nombre: 'eigenvalues2x2', ejecutar: () => eigenvalues2x2(SIMETRICA), esperaPasos: true },
   { nombre: 'eigenvectors', ejecutar: () => eigenvectors(SIMETRICA, [3, 1]), esperaPasos: false },
   { nombre: 'diagonalize', ejecutar: () => diagonalize(SIMETRICA), esperaPasos: false },
 ];

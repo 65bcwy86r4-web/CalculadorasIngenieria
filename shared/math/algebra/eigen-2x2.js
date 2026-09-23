@@ -27,6 +27,28 @@ import { MathError } from '../errors/math-error.js';
 import { DEFAULT_TOLERANCE } from '../utils/constants.js';
 
 /**
+ * Formato de los números dentro del texto de un paso. Cuatro decimales, igual
+ * que el resto del motor (gauss.js, lu.js).
+ * @param {number} value
+ * @returns {string}
+ * @private
+ */
+function format(value) {
+  return value.toFixed(4);
+}
+
+/**
+ * Como `format`, pero entre paréntesis si es negativo, para que una resta no
+ * quede escrita como "0.0000 − -4.0000".
+ * @param {number} value
+ * @returns {string}
+ * @private
+ */
+function signed(value) {
+  return value < 0 ? `(${format(value)})` : format(value);
+}
+
+/**
  * Autovalores de una matriz 2x2 por su polinomio característico:
  * λ² − tr(A)·λ + det(A) = 0, de donde λ = (tr ± √(tr² − 4·det)) / 2.
  *
@@ -35,8 +57,9 @@ import { DEFAULT_TOLERANCE } from '../utils/constants.js';
  * caso `values` viene vacío y el par se informa por partes en `realPart` e
  * `imaginaryPart`.
  *
- * `steps` viene vacío: el desarrollo del polinomio característico es el
- * Paso 2c-2 (ADR-007 §4).
+ * `steps` son siempre tres —coeficientes, discriminante y raíces— más el
+ * cierre. No depende del tamaño porque la función solo acepta 2x2, y no es
+ * iterativa: es la fórmula cuadrática, `O(1)`.
  *
  * @param {Matrix} matrix - matriz de 2x2
  * @param {number} [tolerance=DEFAULT_TOLERANCE] - margen con el que un
@@ -68,24 +91,37 @@ export function eigenvalues2x2(matrix, tolerance = DEFAULT_TOLERANCE) {
   const determinant = a * d - b * c;
   const discriminant = trace * trace - 4 * determinant;
   const realPart = trace / 2;
-  const steps = [];
+
+  const steps = [
+    {
+      type: 'compute',
+      text: `Polinomio característico: λ² − tr(A)·λ + det(A) = 0, con tr(A) = ${format(trace)} y det(A) = ${format(determinant)}.`,
+      snapshot: matrix.toArray(),
+    },
+    {
+      type: 'compute',
+      text: `Discriminante: Δ = tr(A)² − 4·det(A) = ${format(trace * trace)} − ${signed(4 * determinant)} = ${format(discriminant)}`,
+    },
+  ];
 
   if (discriminant < -tolerance) {
-    return {
-      values: [],
-      hasComplexPair: true,
-      realPart,
-      imaginaryPart: Math.sqrt(-discriminant) / 2,
-      steps,
-    };
+    const imaginaryPart = Math.sqrt(-discriminant) / 2;
+    steps.push({
+      type: 'final',
+      text: `Δ < 0: las raíces son un par complejo conjugado, λ = ${format(realPart)} ± ${format(imaginaryPart)}i. `
+        + 'El motor no representa números complejos, así que no devuelve autovalores reales.',
+    });
+    return { values: [], hasComplexPair: true, realPart, imaginaryPart, steps };
   }
 
   const root = Math.sqrt(Math.max(0, discriminant)) / 2;
-  return {
-    values: [realPart + root, realPart - root],
-    hasComplexPair: false,
-    realPart,
-    imaginaryPart: 0,
-    steps,
-  };
+  const values = [realPart + root, realPart - root];
+  steps.push({
+    type: 'final',
+    text: discriminant <= tolerance
+      ? `Δ ≈ 0: raíz doble, λ = ${format(values[0])} con multiplicidad 2.`
+      : `λ = (tr(A) ± √Δ) / 2 = (${format(trace)} ± ${format(Math.sqrt(discriminant))}) / 2 `
+        + `→ λ₁ = ${format(values[0])}, λ₂ = ${format(values[1])}`,
+  });
+  return { values, hasComplexPair: false, realPart, imaginaryPart: 0, steps };
 }

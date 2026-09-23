@@ -22,7 +22,7 @@ responsable del proyecto lo actualiza al cerrar cada sesión de trabajo.
 
 | Componente | Estado | Chat responsable |
 |---|---|---|
-| Motor `shared/math/` | Completo y documentado. 38 archivos. Cubierto por la suite. Sin hallazgos abiertos. 95 exportaciones públicas, sin altas ni bajas. Contrato de `steps` congelado (ADR-007). **Procedimiento escrito en 11 funciones** (Paso 2c-2 parte A, 2026-09-18); quedan 8 con `steps: []` para la parte B. `solveSystem` discrimina por `classification`, no por `type`. | 2 |
+| Motor `shared/math/` | Completo y documentado. 38 archivos. Cubierto por la suite. Sin hallazgos abiertos. 95 exportaciones públicas, sin altas ni bajas. **Procedimiento escrito en 16 de las 18 funciones alcanzadas por ADR-007** (Paso 2c-2 parte B, 2026-09-23); quedan `eigenvectors` y `diagonalize`. | 2 |
 | `docs/` técnica | Architecture, API, Algorithms, Roadmap completos | 1 / 2 |
 | `docs/governance/` | 4 documentos rectores, versión 1.0 | 1 |
 | `tests/` | **329 pruebas en 17 archivos, todas pasan.** Pasos 1, 1b, 2a y 2c-1 cerrados. Incluye `steps-contract.test.js`. | 5 |
@@ -66,6 +66,7 @@ Versión 3 es la cáscara: dashboard, navegación, historial y favoritos (Paso 4
 | 3 | Paso 3c: ganchos de estado para el panel (pedido del Chat 4) | Aprobado el 2026-09-14, no bloquea al 3b |
 | 2 | Paso 2c-2 **parte A**: enmiendas de ADR-007 (D16), D17, grupo 1 y grupo 4 | **Cerrada el 2026-09-18**, verificada por el Chat 1 |
 | 2 | D24 (a): la cota de legibilidad se mide ahora al tamaño máximo del selector | **Cerrada el 2026-09-23.** La suite queda con 1 prueba en rojo **a propósito**: ver §5, D24 |
+| 2 | Paso 2c-2 **parte B**: grupo 2 y los tres métodos de autovalores | **Cerrada el 2026-09-23** |
 | — | — | Ninguna otra sesión abierta |
 
 **Siguientes, independientes entre sí:** el **Paso 2c-2 parte B** (Chat 2) y el
@@ -379,6 +380,90 @@ más trabajo.
 ---
 
 ## 6. Bitácora
+
+### 2026-09-23 — Procedimientos del motor, parte B (Paso 2c-2) · Chat 2
+
+**Resumen.** Cinco funciones más con procedimiento escrito: el grupo 2
+—`qrDecomposition` y `choleskyDecomposition`— y los tres métodos de
+autovalores: `eigenvalues2x2`, `eigenvaluesQR` y `jacobiEigenDecomposition`.
+`eigenvalues` pasa a traer desarrollo sin tocarla, porque hereda el del método
+que despacha.
+
+Quedan dos con `steps: []`: `eigenvectors` y `diagonalize`. Son las que
+**componen** en vez de calcular, y ahí manda D22 —`diagonalize` hereda de dos
+lados a la vez—, que es un problema distinto del que resolvió esta sesión.
+
+La suite pasó de **329 a 342 pruebas**: 341 en verde y el rojo intencional de
+D24, que no se tocó.
+
+**Arquitectura.** La decisión de fondo era **cuántos pasos emite un método
+iterativo** (opción C, aprobada el 2026-09-23). Lo que se implementó:
+
+| Si el trabajo es… | Se emite | Pasos |
+|---|---|---|
+| `O(n)` unidades | uno por unidad | `n` |
+| `O(n²)` unidades | uno por **fila** | `n` |
+| iterativo | la primera iteración y un **hito** por orden de magnitud del residuo | ~`log₁₀(residuo₀ / tolerancia)` |
+
+Lo importante de la regla no es el reparto sino de dónde sale el número: **de
+nada que haya elegido yo.** En el caso iterativo el conteo queda atado a
+`DEFAULT_TOLERANCE`, que ya es una constante documentada del motor. Es la
+diferencia con el 60 de D23, que sí es una elección y sigue anotada como tal.
+
+Cuatro consecuencias concretas:
+
+1. *`choleskyDecomposition` emite por fila y no por elemento.* Por elemento
+   serían `n(n+1)/2` pasos: **120 en 15×15**. Por fila son 15. La fila es
+   además la unidad natural: `L` es triangular inferior y se completa de una
+   vez, terminando en su elemento diagonal.
+2. *`eigenvaluesQR` no emite una iteración por paso.* Corre 500 fijas y 499
+   serían indistinguibles. Emite la primera y después un hito cada vez que la
+   norma subdiagonal cruza un orden de magnitud: **13 pasos** en la simétrica
+   3×3 que converge, contra 500.
+3. *Observar la convergencia no la cambia.* Medir la norma subdiagonal cuesta
+   `O(n²)` contra el `O(n³)` de la factorización QR de ese mismo paso, y **no
+   se usa como criterio de corte**: la iteración sigue corriendo las 500 pase lo
+   que pase. Era la línea que separaba esta opción de la que cambiaba el
+   comportamiento del motor.
+4. *Cuando el método no converge no hay hitos, y el cierre lo admite.* La
+   rotación de 90° y la simétrica de autovalores ±λ dan tres pasos: apertura,
+   primera iteración, y un cierre que dice que no triangularizó y deriva a
+   `eigenvalues`. Es más honesto que doce hitos inventados sobre un residuo que
+   nunca baja.
+
+**Compatibilidad.** Cero. Las cinco funciones ya devolvían `steps`; lo único que
+cambió es que dejó de estar vacío. Ni un nombre nuevo, ni una firma distinta, ni
+una forma de retorno tocada. La API pública sigue en 95.
+
+**Verificación.**
+
+- Línea de base: 341 en verde + 1 rojo intencional sobre `fa7118f`. Al
+  terminar: 341 en verde + el mismo rojo, con 13 pruebas nuevas.
+- **La regla C se verificó donde importa: las cinco funciones entraron a la
+  tabla del contrato en 15×15 y ninguna aparece en la lista de excesos de D24.**
+  Esa lista sigue teniendo las mismas nueve funciones de Gauss e inversión de
+  antes. Si la regla hubiera fallado, se habría visto en el mismo mensaje.
+- **Las dos reglas nuevas se validaron mutando el motor.** Hacer que
+  `eigenvaluesQR` emita un paso por iteración rompe tres pruebas de
+  `algebra-eigen`; hacer que Cholesky vuelva a emitir por elemento rompe tres de
+  `algebra-decompositions` y suma una función más a la lista de excesos de D24.
+- Conteos medidos: Jacobi en 15×15 pide **297 rotaciones y emite 12 pasos**; en
+  3×3 pide 7 y emite 7. QR en 15×15 emite 17 pasos; Cholesky, 17.
+- Los pasos se verifican contra el valor devuelto: el último `snapshot` de
+  Cholesky tiene que ser la `L` que se devuelve, y el cierre de Jacobi tiene que
+  traer los autovalores que devuelve.
+- `eigenvaluesQR` y `jacobiEigenDecomposition` quedaron en 51 y 59 líneas
+  efectivas al escribir los pasos, por encima del máximo de 50 de
+  `AI_RULES.md` §10. Se refactorizaron extrayendo los pasos de apertura y cierre
+  a funciones privadas en vez de justificar la excepción: quedaron en 37 y 47.
+- La suite pasó de 0.6 s a 1.3 s. El costo está en los casos de 15×15 de la
+  tabla del contrato, que se recorre seis veces.
+
+**Próximos pasos.** Cierra la parte B lo que falta del grupo 3: `eigenvectors` y
+`diagonalize`. Las dos componen procedimientos ajenos, así que la sesión es
+sobre D22 —un solo `final`, y `diagonalize` hereda de dos lados— y no sobre la
+regla de esta. Sigue abierto D24 (b), que es del Chat 3 junto con D23, y sigue
+pendiente D8.
 
 ### 2026-09-23 — D24 (a): la cota se mide donde puede fallar · Chat 2
 

@@ -332,6 +332,11 @@ mismo — es la base del algoritmo de autovalores (sección 9).
 
 **Implementación:** `algebra/qr.js::qrDecomposition`.
 
+**Qué muestra el procedimiento:** un paso por columna, que es la unidad de
+trabajo de Gram-Schmidt — restarle a la columna `k` su proyección sobre las
+anteriores y normalizar lo que queda. El `snapshot` es la `Q` parcial. Son `m`
+pasos, así que el desarrollo crece linealmente con el ancho de la matriz.
+
 ---
 
 ## 8. Descomposición de Cholesky
@@ -363,6 +368,13 @@ calcular (y guardar) la mitad triangular de la matriz, con la mitad de
 las operaciones de LU: `O(n³/3)` en vez de `O(2n³/3)`. Es el método
 preferido siempre que la matriz cumpla la condición (por ejemplo,
 matrices de rigidez en análisis estructural, o matrices de covarianza).
+
+**Qué muestra el procedimiento:** un paso por **fila** de `L`, no por elemento.
+El algoritmo calcula `n(n+1)/2` entradas —120 para una matriz de 15×15, el
+tamaño que el selector permite— y eso no es un desarrollo que alguien lea. La
+fila es la unidad natural: `L` es triangular inferior y la fila `i` se completa
+de una vez, terminando en su elemento diagonal. Con eso el procedimiento pasa a
+tener `n` pasos.
 
 **Implementación:** `algebra/cholesky.js::choleskyDecomposition`. Lanza
 `DimensionError` si no es simétrica, `MathError` (`NOT_POSITIVE_DEFINITE`)
@@ -448,6 +460,24 @@ matrices simétricas por acá.
 **Complejidad:** `O(n³)` por iteración (una factorización QR completa),
 así que `O(k·n³)` en total para `k` iteraciones.
 
+**Qué muestra el procedimiento:** no una iteración por paso. Son 500 fijas, y
+499 serían indistinguibles entre sí. Se registra la primera —para ver una
+aplicación concreta de la transformación— y después solo los **hitos**: las
+iteraciones en las que la norma de la parte subdiagonal cae un orden de
+magnitud. Así la cantidad de pasos queda atada a cuántos dígitos de
+convergencia hay entre el residuo inicial y la tolerancia del motor, y no al
+tamaño de la matriz ni a la cantidad de iteraciones.
+
+Medir esa norma cuesta `O(n²)` contra el `O(n³)` que ya cuesta la factorización
+QR de ese mismo paso, así que observar la convergencia no cambia el orden del
+algoritmo — y no es un criterio de corte: la iteración sigue corriendo las 500
+pase lo que pase.
+
+**Cuando no converge** —autovalores complejos o de igual módulo— no hay ningún
+hito, porque el residuo nunca baja. El procedimiento queda en apertura, primera
+iteración y un cierre que lo admite y deriva a `eigenvalues`. Es más honesto que
+doce hitos inventados.
+
 **Implementación:** `algebra/eigen-qr.js::eigenvaluesQR`. Es también el camino
 general de `eigenvalues`, para matrices no simétricas de orden mayor que 2.
 
@@ -494,6 +524,12 @@ negociable.
 
 **Referencia:** Golub & Van Loan, *Matrix Computations*, 4ª ed., §8.5.
 
+**Qué muestra el procedimiento:** la misma regla que el QR, con rotaciones en
+vez de iteraciones. Una 15×15 pide unas 300 rotaciones —medido— y emite del
+orden de doce pasos: la primera y un hito cada vez que el mayor elemento fuera
+de la diagonal cae un orden de magnitud. Cada hito dice qué elemento se anula y
+en qué plano.
+
 **Implementación:** `algebra/eigen-jacobi.js::jacobiEigenDecomposition`. Lanza
 `MathError` (`NOT_SYMMETRIC`) si la matriz no es simétrica: no es un método
 de propósito general y devolver algo igual sería peor que no devolver nada.
@@ -535,6 +571,11 @@ sale del signo del discriminante, no de mirar si quedó residuo en la
 subdiagonal después de 500 iteraciones.
 
 **Complejidad:** `O(1)`. Sin iteración y sin error de truncamiento.
+
+**Qué muestra el procedimiento:** tres pasos fijos —coeficientes del polinomio
+característico, discriminante, y raíces— más el cierre, que distingue los tres
+casos del discriminante. No depende del tamaño porque la función solo acepta
+2×2, y no es iterativa.
 
 **Implementación:** `algebra/eigen-2x2.js::eigenvalues2x2`.
 

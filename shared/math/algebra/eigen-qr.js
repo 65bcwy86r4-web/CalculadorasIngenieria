@@ -23,10 +23,40 @@
 
 import { qrDecomposition } from './qr.js';
 import { assertSquareMatrix } from '../validation/matrix.js';
-import { DEFAULT_QR_ITERATIONS } from '../utils/constants.js';
+import { DEFAULT_QR_ITERATIONS, DEFAULT_TOLERANCE } from '../utils/constants.js';
 
 /** Umbral del elemento subdiagonal por debajo del cual se considera nulo. */
 const SUBDIAGONAL_THRESHOLD = 1e-4;
+
+/**
+ * Formato de los números dentro del texto de un paso. Cuatro decimales, igual
+ * que el resto del motor (gauss.js, lu.js).
+ * @param {number} value
+ * @returns {string}
+ * @private
+ */
+function format(value) {
+  return value.toFixed(4);
+}
+
+/**
+ * Norma euclídea de la parte estrictamente subdiagonal: mide cuánto le falta a
+ * la iterada para ser triangular superior, que es a lo que el método converge.
+ *
+ * Cuesta `O(n²)` frente al `O(n³)` de la factorización QR de ese mismo paso,
+ * así que observar la convergencia no cambia el orden del algoritmo.
+ *
+ * @param {Matrix} matrix
+ * @returns {number}
+ * @private
+ */
+function subdiagonalNorm(matrix) {
+  let total = 0;
+  for (let i = 1; i < matrix.rows; i++) {
+    for (let j = 0; j < i; j++) total += matrix.data[i][j] * matrix.data[i][j];
+  }
+  return Math.sqrt(total);
+}
 
 /**
  * Autovalores de una matriz cuadrada por el **algoritmo QR iterativo**,
@@ -44,8 +74,16 @@ const SUBDIAGONAL_THRESHOLD = 1e-4;
  * Mejorar este camino con desplazamientos de Wilkinson es la deuda D13.
  *
  * `matrixT` es la iterada `Aₖ` al terminar, útil para mostrar el estado de
- * convergencia. `steps` viene vacío: el procedimiento iteración por
- * iteración es el Paso 2c-2 (ADR-007 §4).
+ * convergencia.
+ *
+ * **Cuántos pasos emite.** Un paso por iteración serían 500 siempre, con 499
+ * indistinguibles entre sí. En su lugar se registra la primera iteración —para
+ * ver una aplicación concreta de la transformación— y después solo los
+ * **hitos**: las iteraciones en las que la norma subdiagonal cae un orden de
+ * magnitud. La cantidad de pasos queda atada a cuántos dígitos de convergencia
+ * hay entre el residuo inicial y la tolerancia del motor, no al tamaño de la
+ * matriz ni a la cantidad de iteraciones: son del orden de una docena en el
+ * peor caso, y **cero cuando el método no converge**, que es lo honesto.
  *
  * @param {Matrix} matrix
  * @param {number} [iterations=DEFAULT_QR_ITERATIONS] - pasos de la iteración
@@ -63,12 +101,35 @@ const SUBDIAGONAL_THRESHOLD = 1e-4;
 export function eigenvaluesQR(matrix, iterations = DEFAULT_QR_ITERATIONS) {
   assertSquareMatrix(matrix, 'matrix');
   const n = matrix.rows;
-  const steps = [];
 
   let matrixT = matrix.clone();
+  let residual = subdiagonalNorm(matrixT);
+  const steps = [openingStep(matrixT, iterations, residual)];
+  // Se registra la primera iteración y después solo los hitos: cada vez que el
+  // residuo cruza un orden de magnitud hacia abajo. Un paso por iteración
+  // serían 500, casi todos iguales entre sí.
+  let decade = residual > 0 ? Math.floor(Math.log10(residual)) : -Infinity;
+
   for (let it = 0; it < iterations; it++) {
     const { Q, R } = qrDecomposition(matrixT);
     matrixT = R.multiply(Q);
+    residual = subdiagonalNorm(matrixT);
+    const current = residual > 0 ? Math.floor(Math.log10(residual)) : -Infinity;
+
+    if (it === 0) {
+      steps.push({
+        type: 'iterate',
+        text: `Iteración 1: norma subdiagonal ${format(residual)}.`,
+        snapshot: matrixT.toArray(),
+      });
+    } else if (current < decade && residual > DEFAULT_TOLERANCE) {
+      steps.push({
+        type: 'iterate',
+        text: `Iteración ${it + 1}: la norma subdiagonal baja a ${residual.toExponential(2)}.`,
+        snapshot: matrixT.toArray(),
+      });
+    }
+    if (current < decade) decade = current;
   }
 
   const values = [];
@@ -80,5 +141,48 @@ export function eigenvaluesQR(matrix, iterations = DEFAULT_QR_ITERATIONS) {
   }
 
   values.sort((a, b) => b - a);
+  steps.push(closingStep(matrixT, values, residual, iterations, hasComplexHint));
   return { values, matrixT, hasComplexHint, steps };
+}
+
+/**
+ * Paso de apertura: qué método corre y de cuánto parte el residuo.
+ * @param {Matrix} matrixT
+ * @param {number} iterations
+ * @param {number} residual
+ * @returns {Object}
+ * @private
+ */
+function openingStep(matrixT, iterations, residual) {
+  return {
+    type: 'info',
+    text: `Iteración QR: Aₖ = QₖRₖ, Aₖ₊₁ = RₖQₖ. Se corren ${iterations} iteraciones; `
+      + `la norma subdiagonal arranca en ${format(residual)} y tiene que tender a cero.`,
+    snapshot: matrixT.toArray(),
+  };
+}
+
+/**
+ * Paso de cierre. Distingue los dos desenlaces posibles, porque un
+ * procedimiento que termina anunciando autovalores que no son los autovalores
+ * es peor que uno que admite no haber convergido.
+ * @param {Matrix} matrixT
+ * @param {number[]} values
+ * @param {number} residual
+ * @param {number} iterations
+ * @param {boolean} hasComplexHint
+ * @returns {Object}
+ * @private
+ */
+function closingStep(matrixT, values, residual, iterations, hasComplexHint) {
+  return {
+    type: 'final',
+    text: hasComplexHint
+      ? `Tras ${iterations} iteraciones la norma subdiagonal sigue en ${format(residual)}: la iteración no triangularizó. `
+        + 'La diagonal no son los autovalores — hay autovalores complejos o de igual módulo (deuda D13). '
+        + 'Para obtenerlos, usar eigenvalues, que despacha a Jacobi en el caso simétrico.'
+      : `La iterada quedó triangular superior (norma subdiagonal ${residual.toExponential(2)}): `
+        + `su diagonal son los autovalores, ${values.map(format).join(', ')}.`,
+    snapshot: matrixT.toArray(),
+  };
 }

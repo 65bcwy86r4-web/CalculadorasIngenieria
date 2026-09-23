@@ -23,8 +23,16 @@ import {
 } from '../../shared/math/index.js';
 
 import {
-  assertTrue, assertClose, assertMatrixClose, assertThrows,
+  assertTrue, assertEqual, assertClose, assertMatrixClose, assertThrows,
 } from '../assert.js';
+
+/** Simétrica definida positiva de orden n, para probar Cholesky en grande. */
+function definidaPositiva(n) {
+  const A = new Matrix(
+    Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 4 + i : 1 / (1 + Math.abs(i - j))))),
+  );
+  return A.multiply(A.transpose()).add(Matrix.identity(n).scalarMultiply(n));
+}
 
 /** Matriz simétrica definida positiva de referencia (bibliografía clásica). */
 const SDP_3X3 = new Matrix([[4, 12, -16], [12, 37, -43], [-16, -43, 98]]);
@@ -224,6 +232,71 @@ export const tests = [
         'DIMENSION_ERROR',
         'No cuadrada.',
       );
+    },
+  },
+
+  /* ------------------ procedimiento (Paso 2c-2, parte B) ------------------ */
+  {
+    name: 'qrDecomposition emite un paso por columna',
+    fn: () => {
+      // Gram-Schmidt trabaja columna por columna: esa es la unidad del
+      // procedimiento. Son m pasos más la apertura y el cierre, así que el
+      // desarrollo crece linealmente con el ancho y no hace falta acotarlo.
+      const a = new Matrix([[12, -51], [6, 167], [-4, 24]]);
+      const { steps } = qrDecomposition(a);
+      assertEqual(steps.length, 4, 'Apertura + 2 columnas + cierre.');
+      assertEqual(steps[0].type, 'info', 'Abre anunciando el método.');
+      assertEqual(steps[1].type, 'normalize', 'La primera columna solo se normaliza.');
+      assertEqual(steps[2].type, 'compute', 'Las siguientes se ortogonalizan primero.');
+      assertEqual(steps[steps.length - 1].type, 'final', 'Cierra con A = Q·R.');
+    },
+  },
+  {
+    name: 'el snapshot de cada paso de QR es la Q parcial',
+    fn: () => {
+      // "El factor que se está construyendo" (ADR-007 §3.2): después del paso k
+      // hay k columnas ortonormales.
+      const a = new Matrix([[12, -51], [6, 167], [-4, 24]]);
+      const { steps } = qrDecomposition(a);
+      assertEqual(steps[1].snapshot[0].length, 1, 'Tras la primera columna, Q parcial tiene 1 columna.');
+      assertEqual(steps[2].snapshot[0].length, 2, 'Tras la segunda, 2.');
+      assertEqual(steps[1].snapshot.length, 3, 'Con tantas filas como A.');
+    },
+  },
+  {
+    name: 'choleskyDecomposition emite un paso por fila, no por elemento',
+    fn: () => {
+      // n(n+1)/2 elementos serían 120 pasos en 15x15. Por fila son n, y el
+      // procedimiento pasa a crecer linealmente con el orden.
+      const { steps } = choleskyDecomposition(new Matrix([[4, 12, -16], [12, 37, -43], [-16, -43, 98]]));
+      assertEqual(steps.filter((paso) => paso.type === 'compute').length, 3, 'Una fila de L por paso.');
+      assertEqual(steps.length, 5, 'Apertura + 3 filas + cierre.');
+      assertEqual(steps[steps.length - 1].type, 'final', 'Cierra con A = L·Lᵀ.');
+    },
+  },
+  {
+    name: 'el procedimiento de las dos descomposiciones no crece con el tamaño',
+    fn: () => {
+      // La cota de la regla: en 15x15, el tamaño que el selector permite.
+      const grande = definidaPositiva(15);
+      assertEqual(choleskyDecomposition(grande).steps.length, 17, 'Cholesky: apertura + 15 filas + cierre.');
+      assertEqual(qrDecomposition(grande).steps.length, 17, 'QR: apertura + 15 columnas + cierre.');
+    },
+  },
+  {
+    name: 'los pasos de Cholesky muestran la L que efectivamente se devuelve',
+    fn: () => {
+      // Verificación cruzada contra el propio procedimiento: si el último
+      // snapshot y la L devuelta se separan, el desarrollo miente.
+      const { L, steps } = choleskyDecomposition(new Matrix([[4, 12, -16], [12, 37, -43], [-16, -43, 98]]));
+      assertMatrixClose(L, steps[steps.length - 1].snapshot, 'El snapshot final debería ser L.');
+      const ultimaFila = steps.filter((paso) => paso.type === 'compute').pop();
+      L.data[2].slice(0, 3).forEach((valor) => {
+        assertTrue(
+          ultimaFila.text.includes(valor.toFixed(4)),
+          `La última fila del desarrollo debería incluir ${valor.toFixed(4)}.`,
+        );
+      });
     },
   },
 ];

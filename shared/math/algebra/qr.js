@@ -20,6 +20,17 @@
 import { Matrix } from './matrix.js';
 import { assertMatrixLike } from '../validation/matrix.js';
 
+/**
+ * Formato de los números dentro del texto de un paso. Cuatro decimales, igual
+ * que el resto del motor (gauss.js, lu.js).
+ * @param {number} value
+ * @returns {string}
+ * @private
+ */
+function format(value) {
+  return value.toFixed(4);
+}
+
 /** @private */
 function dot(a, b) {
   let s = 0;
@@ -42,15 +53,21 @@ function getColumn(matrix, j) {
 /**
  * Factorización QR mediante Gram-Schmidt clásico.
  *
- * `steps` viene vacío: el desarrollo columna por columna del proceso de
- * Gram-Schmidt es el Paso 2c-2 (ADR-007 §4). La clave existe desde ya para
- * que la interfaz pueda escribirse contra el contrato definitivo.
+ * `steps` emite **un paso por columna**, que es la unidad de trabajo del
+ * proceso: se le resta a la columna k su proyección sobre las anteriores y se
+ * normaliza lo que queda. Son `m` pasos, uno por columna, así que el
+ * procedimiento crece linealmente con el ancho de la matriz y no hace falta
+ * acotarlo. El `snapshot` de cada paso es la `Q` parcial: las columnas
+ * ortonormalizadas hasta ese momento, que es el factor que se está
+ * construyendo (ADR-007 §3.2).
  *
  * @param {Matrix} matrix - m×n con columnas linealmente independientes
  * @returns {{ Q: Matrix, R: Matrix, steps: Array<Object> }}
  * @throws {MathError} si matrix no es matrix-like (vía assertMatrixLike)
  * @example
  * const { Q, R } = qrDecomposition(new Matrix([[1,1],[0,1],[1,0]]));
+ * @example
+ * qrDecomposition(new Matrix([[1,1],[0,1],[1,0]])).steps.length; // 4
  */
 export function qrDecomposition(matrix) {
   assertMatrixLike(matrix, 'matrix');
@@ -58,6 +75,12 @@ export function qrDecomposition(matrix) {
     m = matrix.cols;
   const columns = [];
   for (let j = 0; j < m; j++) columns.push(getColumn(matrix, j));
+
+  const steps = [{
+    type: 'info',
+    text: `Gram-Schmidt: cada columna se ortogonaliza contra las anteriores y se normaliza. ${m} columna(s).`,
+    snapshot: matrix.toArray(),
+  }];
 
   const orthoCols = [];
   for (let k = 0; k < columns.length; k++) {
@@ -68,6 +91,13 @@ export function qrDecomposition(matrix) {
     }
     const nv = norm(v);
     orthoCols.push(nv < 1e-12 ? v : v.map((val) => val / nv));
+    steps.push({
+      type: k === 0 ? 'normalize' : 'compute',
+      text: k === 0
+        ? `q1 = a1 / ‖a1‖, con ‖a1‖ = ${format(nv)}`
+        : `q${k + 1} = (a${k + 1} − ${k} proyección(es) sobre q1..q${k}) / ‖·‖, con ‖·‖ = ${format(nv)}`,
+      snapshot: partialQ(orthoCols, n),
+    });
   }
 
   const Q = Matrix.zeros(n, m);
@@ -76,5 +106,23 @@ export function qrDecomposition(matrix) {
   const R = Matrix.zeros(m, m);
   for (let i = 0; i < m; i++) for (let j = i; j < m; j++) R.data[i][j] = dot(orthoCols[i], columns[j]);
 
-  return { Q, R, steps: [] };
+  steps.push({
+    type: 'final',
+    text: 'A = Q·R: Q tiene las columnas ortonormales y R = Qᵀ·A es triangular superior.',
+    snapshot: R.toArray(),
+  });
+  return { Q, R, steps };
+}
+
+/**
+ * Las columnas ya ortonormalizadas, como arreglo 2D de `filas × columnas`.
+ * Es la `Q` parcial que se está construyendo, para el `snapshot` del paso.
+ *
+ * @param {number[][]} orthoCols - columnas ortonormales, cada una un arreglo
+ * @param {number} rows
+ * @returns {number[][]}
+ * @private
+ */
+function partialQ(orthoCols, rows) {
+  return Array.from({ length: rows }, (_, i) => orthoCols.map((col) => col[i]));
 }

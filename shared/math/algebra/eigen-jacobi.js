@@ -31,6 +31,17 @@ import { DEFAULT_MAX_ITERATIONS, DEFAULT_TOLERANCE } from '../utils/constants.js
 /** Cantidad de rotaciones de Jacobi antes de darse por no convergido. */
 const JACOBI_MAX_ROTATIONS = DEFAULT_MAX_ITERATIONS * 10;
 
+/**
+ * Formato de los números dentro del texto de un paso. Cuatro decimales, igual
+ * que el resto del motor (gauss.js, lu.js).
+ * @param {number} value
+ * @returns {string}
+ * @private
+ */
+function format(value) {
+  return value.toFixed(4);
+}
+
 /* --------------------------------- Privadas --------------------------------- */
 
 /**
@@ -145,9 +156,13 @@ function normalizedColumn(basis, index) {
  * repetidos o de igual módulo, que es donde la iteración QR sin
  * desplazamiento falla.
  *
- * `steps` viene vacío: el procedimiento rotación por rotación es el Paso
- * 2c-2 (ADR-007 §4). La clave existe desde ya para que la interfaz pueda
- * escribirse contra el contrato definitivo.
+ * **Cuántos pasos emite.** Una rotación por paso serían 297 en una matriz de
+ * 15x15 —medido— y crecen cuadráticamente con el orden. En su lugar se
+ * registra la primera rotación, para ver una aplicación concreta del método, y
+ * después solo los **hitos**: las rotaciones en las que el mayor elemento fuera
+ * de la diagonal cae un orden de magnitud. La cantidad de pasos queda atada a
+ * cuántos dígitos hay entre el residuo inicial y la tolerancia, no al orden de
+ * la matriz ni a la cantidad de rotaciones.
  *
  * @param {Matrix} matrix - matriz simétrica
  * @param {number} [tolerance=DEFAULT_TOLERANCE] - umbral bajo el cual el mayor
@@ -180,9 +195,15 @@ export function jacobiEigenDecomposition(
   const n = matrix.rows;
   const data = matrix.data.map((row) => [...row]);
   const basis = Matrix.identity(n).data;
-  const steps = [];
   let rotations = 0;
   let converged = false;
+
+  const initial = largestOffDiagonal(data).magnitude;
+  const steps = [openingStep(matrix, initial)];
+  // Se registra la primera rotación y después solo los hitos: cada vez que el
+  // mayor elemento fuera de la diagonal cruza un orden de magnitud hacia abajo.
+  // Una rotación por paso serían 297 en una 15x15.
+  let decade = initial > 0 ? Math.floor(Math.log10(initial)) : -Infinity;
 
   while (rotations < maxRotations) {
     const { p, q, magnitude } = largestOffDiagonal(data);
@@ -190,12 +211,61 @@ export function jacobiEigenDecomposition(
       converged = true;
       break;
     }
+    const current = magnitude > 0 ? Math.floor(Math.log10(magnitude)) : -Infinity;
+    const isMilestone = rotations === 0 || current < decade;
+    if (current < decade) decade = current;
+
     applyJacobiRotation(data, basis, p, q);
     rotations++;
+
+    if (isMilestone) steps.push(rotationStep(rotations, p, q, magnitude, data));
   }
 
   const rawValues = data.map((row, i) => row[i]);
   const rawVectors = rawValues.map((_, index) => normalizedColumn(basis, index));
   const { values, vectors } = sortEigenpairs(rawValues, rawVectors);
+  steps.push({
+    type: 'final',
+    text: converged
+      ? `La matriz quedó diagonal tras ${rotations} rotación(es): su diagonal son los autovalores, `
+        + `${values.map(format).join(', ')}. Las columnas acumuladas son los autovectores.`
+      : `Se alcanzó el tope de ${maxRotations} rotaciones sin converger.`,
+    snapshot: data.map((row) => [...row]),
+  });
   return { values, vectors, rotations, converged, steps };
+}
+
+/**
+ * Paso de apertura: qué hace el método y de cuánto parte el residuo.
+ * @param {Matrix} matrix
+ * @param {number} initial - mayor elemento fuera de la diagonal al empezar
+ * @returns {Object}
+ * @private
+ */
+function openingStep(matrix, initial) {
+  return {
+    type: 'info',
+    text: 'Rotaciones de Jacobi: cada una anula el mayor elemento fuera de la diagonal por una '
+      + `transformación de semejanza ortogonal. El mayor arranca en ${format(initial)} y tiene que tender a cero.`,
+    snapshot: matrix.toArray(),
+  };
+}
+
+/**
+ * Paso de una rotación registrada como hito.
+ * @param {number} rotations - número de rotación, ya incrementado
+ * @param {number} p
+ * @param {number} q
+ * @param {number} magnitude - elemento que esta rotación anula
+ * @param {number[][]} data - estado después de rotar
+ * @returns {Object}
+ * @private
+ */
+function rotationStep(rotations, p, q, magnitude, data) {
+  return {
+    type: 'rotate',
+    text: `Rotación ${rotations}: se anula a${p + 1}${q + 1} = ${format(magnitude)}`
+      + ` en el plano (${p + 1}, ${q + 1}).`,
+    snapshot: data.map((row) => [...row]),
+  };
 }
